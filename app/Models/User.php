@@ -18,25 +18,19 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
+    protected $table = 'User';
     protected $fillable = [
-        'username',
-        'first_name',
-        'last_name',
+        'id',
+        'name',
+        'mobile',
+        'address',
+        'depart_id',
         'password',
-        'email',
-        'address1',
-        'address2',
-        'landmark',
-        'city',
-        'state',
-        'pincode',
-        'mobile_number',
-        'secondarymobile',
-        'role_id',
-        'ireportTo',
-        'itickettype',
-        'isInsurance',
-        'status'
+        'expo_count',
+        'iStatus',
+        'iSDelete',
+        'created_at',
+        'updated_at'
     ];
 
     /**
@@ -66,5 +60,10 @@ class User extends Authenticatable
     public function getFullNameAttribute()
     {
         return "{$this->first_name} {$this->last_name}";
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class, 'depart_id', 'id');
     }
 }

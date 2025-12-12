@@ -12,10 +12,15 @@ class CityMaster extends Model
     protected $fillable = [
         'id',
         'name',
+        'stateid',
         'iStatus',
         'iSDelete',
         'created_at',
         'updated_at',
-
     ];
+
+    public function state()
+    {
+        return $this->belongsTo(StateMaster::class, 'stateid', 'stateId');
+    }
 }
