@@ -21,9 +21,6 @@ use Illuminate\Support\Str;
 class UserApiController extends Controller
 
 {
-
-
-
     public function UserAdd(Request $request)
     {
         try {
@@ -69,7 +66,7 @@ class UserApiController extends Controller
                     'name' => $User->name,
                     'mobile' => $User->mobile,
                     'address' => $User->address,
-                    'departname' => $expo->department->name ?? '',
+                    'departname' => $User->department->name ?? '',
                 ];
             }
 
@@ -168,7 +165,7 @@ class UserApiController extends Controller
 
                 "user_id" => 'required'
             ]);
-            $User = User::find($request->user_id);
+            $User = User::where('id', $request->user_id);
             if ($User) {
                 $User->delete();
 
@@ -182,6 +179,59 @@ class UserApiController extends Controller
                     'message' => 'User not found',
                 ], 404);
             }
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error' => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function changePassword(Request $request)
+    {
+        try {
+            $request->validate([
+                'user_id' => 'required|exists:User,id',
+                'new_password' => 'required|min:6',
+                'confirm_password' => 'required|same:new_password',
+            ]);
+
+            $user = User::find($request->user_id);
+
+            // Update password
+            $user->password = Hash::make($request->new_password);
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Password changed successfully',
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error' => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function changeStatus(Request $request)
+    {
+        try {
+            $request->validate([
+                'user_id' => 'required|exists:User,id',
+                'iStatus' => 'required|in:0,1',
+            ]);
+
+            $user = User::find($request->user_id);
+            $user->iStatus = $request->iStatus;
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => $request->iStatus == 1
+                    ? 'User activated successfully'
+                    : 'User deactivated successfully',
+            ], 200);
         } catch (\Throwable $th) {
             return response()->json([
                 'success' => false,
