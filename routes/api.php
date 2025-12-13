@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\IndustryApiController;
 use App\Http\Controllers\Api\DepartmentApiController;
 use App\Http\Controllers\Api\ExpoApiController;
 use App\Http\Controllers\Api\UserApiController;
+use App\Http\Controllers\Api\ExpoAssignToUserApiController;
+
 use Illuminate\Support\Facades\Artisan;
 
 /*
@@ -70,3 +72,10 @@ Route::post('/UserList', [UserApiController::class, 'UserList']);
 Route::post('/Usershow', [UserApiController::class, 'Usershow']);
 Route::post('/UserUpdate', [UserApiController::class, 'UserUpdate']);
 Route::post('/UserDelete', [UserApiController::class, 'UserDelete']);
+Route::post('/user/change-password', [UserApiController::class, 'changePassword']);
+Route::post('/user/change-status', [UserApiController::class, 'changeStatus']);
+
+
+Route::post('/ExpoAssign/UserAdd', [ExpoAssignToUserApiController::class, 'ExpoUserAdd']);
+Route::post('/ExpoAssign/UserList', [ExpoAssignToUserApiController::class, 'ExpoUserList']);
+Route::post('/ExpoAssign/UserDelete', [ExpoAssignToUserApiController::class, 'ExpoUserDelete']);
