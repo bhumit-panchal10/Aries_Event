@@ -40,7 +40,7 @@ class ExpoAssignToUserApiController extends Controller
             ]);
 
             // Count total users assigned to this expo
-            $totalUserCount = ExpoAssignToUser::where('expo_id', $request->expo_id)->count();
+            $totalUserCount = ExpoAssignToUser::where('user_id', $request->user_id)->count();
 
             // Update expo master count
             User::where('id', $request->user_id)
@@ -114,13 +114,13 @@ class ExpoAssignToUserApiController extends Controller
                 ], 404);
             }
 
-            $expoId = $assign->expo_id;
+            $user_id = $assign->user_id;
 
             // Delete assignment
             $assign->delete();
 
             // Recalculate expo count
-            $totalUserCount = ExpoAssignToUser::where('expo_id', $expoId)->count();
+            $totalUserCount = ExpoAssignToUser::where('user_id', $user_id)->count();
 
             // Update expo master count
             User::where('id', $assign->user_id)

@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\DepartmentApiController;
 use App\Http\Controllers\Api\ExpoApiController;
 use App\Http\Controllers\Api\UserApiController;
 use App\Http\Controllers\Api\ExpoAssignToUserApiController;
+use App\Http\Controllers\Api\VisitorApiController;
 
 use Illuminate\Support\Facades\Artisan;
 
@@ -31,9 +32,9 @@ Route::get('/clear-cache', function () {
     return 'Cache is cleared';
 });
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
+// Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+//     return $request->user();
+// });
 Route::post('/adminlogin', [AdminApiController::class, 'adminlogin']);
 Route::post('/admin/profile', [AdminApiController::class, 'profiledetails'])->name('profiledetails');
 Route::post('/admin/profile/update', [AdminApiController::class, 'profileUpdate'])->name('profileUpdate');
@@ -74,8 +75,18 @@ Route::post('/UserUpdate', [UserApiController::class, 'UserUpdate']);
 Route::post('/UserDelete', [UserApiController::class, 'UserDelete']);
 Route::post('/user/change-password', [UserApiController::class, 'changePassword']);
 Route::post('/user/change-status', [UserApiController::class, 'changeStatus']);
+Route::post('/User/login', [UserApiController::class, 'Userlogin']);
+Route::post('/Assign/Expolist', [UserApiController::class, 'AssignExpolist']);
+Route::post('/user/changepassword', [UserApiController::class, 'user_changePassword']);
+Route::post('/user/profile', [UserApiController::class, 'userprofile']);
+Route::post('/user/logout', [AdminApiController::class, 'logout']);
 
 
 Route::post('/ExpoAssign/UserAdd', [ExpoAssignToUserApiController::class, 'ExpoUserAdd']);
 Route::post('/ExpoAssign/UserList', [ExpoAssignToUserApiController::class, 'ExpoUserList']);
 Route::post('/ExpoAssign/UserDelete', [ExpoAssignToUserApiController::class, 'ExpoUserDelete']);
+
+Route::post('/Visitor/Add', [VisitorApiController::class, 'visitoradd']);
+Route::post('/visitor/by-mobile', [VisitorApiController::class, 'getByMobile']);
+Route::post('/Visitor/list', [VisitorApiController::class, 'visitorlist']);
+Route::post('/visitor/user/count', [VisitorApiController::class, 'userVisitorCount']);
