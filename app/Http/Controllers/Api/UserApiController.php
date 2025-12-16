@@ -35,6 +35,7 @@ class UserApiController extends Controller
                 'expomaster.state'
             ])
                 ->where('user_id', $request->user_id)
+                ->whereHas('expomaster')
                 ->get()
                 ->map(function ($item) {
                     return [
@@ -63,17 +64,35 @@ class UserApiController extends Controller
     {
         try {
 
-            $request->validate([
-                "name" => 'required',
-                "mobile" => 'required',
-                "address" => 'required',
-                "department_id" => 'required',
-                "password" => 'required',
-            ]);
+            $request->validate(
+                [
+                    'name'          => 'required',
+                    'mobile'        => 'required|digits:10|unique:User,mobile',
+                    'email'         => 'required|email|unique:User,email',
+                    'address'       => 'required',
+                    'department_id' => 'required|exists:Department,id',
+                    'password'      => 'required',
+                ],
+                [
+                    // ✅ Custom messages
+                    'mobile.required' => 'Mobile number is required.',
+                    'mobile.digits'   => 'Mobile number must be exactly 10 digits.',
+                    'mobile.unique'   => 'This mobile number is already registered.',
+
+                    'email.required'  => 'Email address is required.',
+                    'email.email'     => 'Please enter a valid email address.',
+                    'email.unique'    => 'This email address is already registered.',
+
+                    'department_id.exists' => 'Selected department does not exist.',
+                    'password.min' => 'Password must be at least 6 characters.',
+                ]
+
+            );
 
             $User = User::create([
                 'name' => $request->name,
                 'mobile' => $request->mobile,
+                'email' => $request->email,
                 'address' => $request->address,
                 'depart_id' => $request->department_id,
                 'password' => Hash::make($request->password),
@@ -98,11 +117,13 @@ class UserApiController extends Controller
         try {
 
             $Users = User::with('department')->get();
+
             foreach ($Users as $User) {
                 $data[] = [
                     'Userid' => $User->id,
                     'iStatus' => $User->iStatus,
                     'name' => $User->name,
+                    'email' => $User->email,
                     'mobile' => $User->mobile,
                     'expo_count' => $User->expo_count,
                     'address' => $User->address,
@@ -137,6 +158,7 @@ class UserApiController extends Controller
             $data[] = [
                 'Usersid' => $Users->id,
                 'name' => $Users->name,
+                'email' => $Users->email,
                 'mobile' => $Users->mobile,
                 'address' => $Users->address,
                 'department' => $Users->department->name ?? '',
@@ -160,6 +182,7 @@ class UserApiController extends Controller
             [
                 "user_id" => 'required',
                 "name" => 'required',
+                "email" => 'required',
                 "mobile" => 'required',
                 "address" => 'required',
                 "department_id" => 'required',
@@ -173,6 +196,7 @@ class UserApiController extends Controller
             if ($User) {
                 $User->update([
                     'name' => $request->name,
+                    'email' => $request->email,
                     'mobile' => $request->mobile,
                     'address' => $request->address,
                     'depart_id' => $request->department_id,
@@ -455,6 +479,79 @@ class UserApiController extends Controller
                 'success' => false,
                 'error' => $th->getMessage(),
             ], 500);
+        }
+    }
+
+    public function profileupdate(Request $request)
+    {
+        try {
+
+            if (Auth::guard('api')->check()) {
+
+                $user = Auth::guard('api')->user();
+
+                $request->validate([
+                    'user_id' => 'required'
+                ]);
+
+                $User = User::where(['id' => $request->user_id])->first();
+
+                if (!$User) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "User not found."
+                    ]);
+                }
+
+                // Start building the Vendor data
+                $UserData = [];
+
+                // Add fields conditionally
+                if ($request->has('name')) {
+                    $UserData["name"] = $request->name;
+                }
+                if ($request->has('email')) {
+                    $UserData["email"] = $request->email;
+                }
+                if ($request->has('mobile_no')) {
+                    $UserData["mobile"] = $request->mobile_no;
+                }
+                if ($request->has('address')) {
+                    $UserData["address"] = $request->address;
+                }
+
+
+                // Always update 'updated_at'
+                $UserData['updated_at'] = now();
+
+                DB::beginTransaction();
+
+                try {
+
+                    User::where(['id' => $request->user_id])->update($UserData);
+
+                    DB::commit();
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => "User Profile updated successfully.",
+
+                    ], 200);
+                } catch (\Throwable $th) {
+                    DB::rollBack();
+                    throw $th;
+                }
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User is not authorized.',
+                ], 401);
+            }
+        } catch (ValidationException $e) {
+            return response()->json(['errors' => $e->errors()], 422);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json(['error' => $th->getMessage()], 500);
         }
     }
 }

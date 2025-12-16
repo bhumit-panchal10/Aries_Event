@@ -34,11 +34,7 @@ class VisitorApiController extends Controller
                 ],
                 'companyname'  => 'required',
                 'name'         => 'required',
-                'email'        => [
-                    'required',
-                    'email',
-                    Rule::unique('visitor', 'email'),
-                ],
+                'email'        => 'required',
                 'stateid'      => 'required',
                 'cityid'       => 'required',
                 'userid'       => 'required',
@@ -110,11 +106,68 @@ class VisitorApiController extends Controller
     {
         try {
             $request->validate([
-                'userid' => 'required',
+                'user_id' => 'required',
+                'label'   => 'nullable',
             ]);
 
+            $perPage = 10;
+            $page = $request->page ?? 1;
+
+            $query = Visitor::with(['state', 'city'])
+                ->where('user_id', $request->user_id);
+
+            // ✅ Total visitors OR Today visitors
+            if ($request->label !== 'TotalVisitors') {
+                $query->whereDate('created_at', now()->toDateString());
+            }
+
+            $visitors = $query->paginate($perPage, ['*'], 'page', $page);
+            if ($visitors->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Visitor not found',
+                ], 404);
+            }
+
+            $data = [];
+            foreach ($visitors as $visit) {
+                $data[] = [
+                    'visitorid'   => $visit->id,
+                    'mobileno'    => $visit->mobileno,
+                    'companyname' => $visit->companyname,
+                    'name'        => $visit->name,
+                    'email'       => $visit->email,
+                    'stateid'     => $visit->stateid,
+                    'cityid'      => $visit->cityid,
+                    'stateName'   => $visit->state->stateName ?? '',
+                    'cityName'    => $visit->city->name ?? '',
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'count'   => $visitors->total(),
+                'data'    => $data,
+                'message' => 'Visitor record fetched successfully',
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error'   => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    public function visitorshow(Request $request)
+    {
+        try {
+            $request->validate([
+                'visitorid' => 'nullable',
+
+            ]);
             $visitors = Visitor::with(['state', 'city'])
-                ->where('user_id', $request->userid)
+                ->where('id', $request->visitorid)
                 ->get();
 
             if ($visitors->isEmpty()) {
@@ -179,6 +232,57 @@ class VisitorApiController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function visitorupdate(Request $request)
+    {
+        try {
+
+            $request->validate([
+                'visitorid' => 'required|exists:visitor,id',
+            ]);
+
+            $visitor = Visitor::findOrFail($request->visitorid);
+
+            // ✅ Check if vendor already updated today
+            if (!$visitor->created_at->isToday()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only today visitor record can be updated.'
+                ], 403);
+            }
+
+            // ✅ Validation
+            $request->validate([
+                'name'          => 'required|string|max:255',
+                'mobile'        => 'required|digits:10|unique:visitor,mobileno,' . $visitor->id,
+                'email'         => 'required|email|unique:visitor,email,' . $visitor->id,
+                'companyname'       => 'required|string',
+                'state_id' => 'required|exists:state,stateId',
+                'city_id' => 'required|exists:City,id',
+
+            ]);
+
+            // ✅ Update Vendor
+            $visitor->update([
+                'name'          => $request->name,
+                'mobile'        => $request->mobile,
+                'email'         => $request->email,
+                'companyname'       => $request->companyname,
+                'stateid' => $request->state_id,
+                'cityid' => $request->city_id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Visitor updated successfully.'
+            ], 200);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
             ], 500);
         }
     }
