@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\IndustryMaster;
+use App\Models\ExpoMaster;
 use App\Models\StateMaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -147,6 +148,38 @@ class IndustryApiController extends Controller
                     'message' => 'Industry not found',
                 ], 404);
             }
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error' => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function IndustrywiseExpo(Request $request)
+    {
+        $request->validate(
+            [
+                'industry_id' => 'required',
+
+            ]
+        );
+        try {
+
+            $IndustrywiseExpo = ExpoMaster::where('industry_id', $request->industry_id)->get();
+            $data = [];
+            foreach ($IndustrywiseExpo as $industry) {
+                $data[] = [
+                    'expoid' => $industry->id,
+                    'exponame' => $industry->name,
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'message' => 'Industry Wise Expo Fetch Successfully',
+            ], 201);
         } catch (\Throwable $th) {
             return response()->json([
                 'success' => false,

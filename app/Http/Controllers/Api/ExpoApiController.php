@@ -61,6 +61,7 @@ class ExpoApiController extends Controller
 
             $ExpoMaster = ExpoMaster::create([
                 'name' => $request->name,
+                'slugname' => Str::slug($request->name),
                 'industry_id' => $request->industry_id,
                 'state_id' => $request->state_id,
                 'city_id' => $request->city_id,
@@ -81,28 +82,28 @@ class ExpoApiController extends Controller
         }
     }
 
-    public function ExpoList(Request $request)
+    public function ExpoList()
     {
         try {
-
-            $ExpoMaster = ExpoMaster::with('state', 'city', 'industry')->get();
-            foreach ($ExpoMaster as $expo) {
-                $data[] = [
-                    'Expoid' => $expo->id,
-                    'name' => $expo->name,
-                    'date' => $expo->date,
-                    'statename' => $expo->state->stateName ?? '',
-                    'cityname' => $expo->city->name ?? '',
-                    'industryname' => $expo->industry->name ?? '',
-
-                ];
-            }
+            $data = ExpoMaster::with(['state', 'city', 'industry'])
+                ->get()
+                ->map(function ($expo) {
+                    return [
+                        'Expoid' => $expo->id,
+                        'name' => $expo->name,
+                        'date' => $expo->date,
+                        'slugname' => $expo->slugname,
+                        'statename' => optional($expo->state)->stateName,
+                        'cityname' => optional($expo->city)->name,
+                        'industryname' => optional($expo->industry)->name,
+                    ];
+                });
 
             return response()->json([
                 'success' => true,
                 'data' => $data,
                 'message' => 'Expo Fetch Successfully',
-            ], 201);
+            ], 200);
         } catch (\Throwable $th) {
             return response()->json([
                 'success' => false,
@@ -110,6 +111,7 @@ class ExpoApiController extends Controller
             ], 500);
         }
     }
+
 
     public function Exposhow(Request $request)
     {
@@ -166,6 +168,7 @@ class ExpoApiController extends Controller
             if ($Expo) {
                 $Expo->update([
                     'name' => $request->name,
+                    'slugname' => Str::slug($request->name),
                     'date' => $request->date,
                     'industry_id' => $request->industry_id,
                     'state_id' => $request->state_id,

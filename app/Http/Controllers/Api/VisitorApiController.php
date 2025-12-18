@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CityMaster;
 use App\Models\Visitor;
+use App\Models\Visitorvisit;
+use App\Models\ExpoMaster;
+use App\Models\ExpoAssignToUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -27,37 +30,57 @@ class VisitorApiController extends Controller
     {
         try {
 
+            DB::beginTransaction();
+
             $request->validate([
-                'mobileno'     => [
+                'mobileno' => [
                     'required',
-                    Rule::unique('visitor', 'mobileno'),
+                    Rule::unique('visitor')->where(function ($query) use ($request) {
+                        return $query->where('expo_id', $request->expoid)
+                            ->where('iSDelete', 0);
+                    }),
                 ],
-                'companyname'  => 'required',
-                'name'         => 'required',
-                'email'        => 'required',
-                'stateid'      => 'required',
-                'cityid'       => 'required',
-                'userid'       => 'required',
-                'expoid'       => 'required',
+                'companyname' => 'nullable',
+                'name'        => 'nullable',
+                'email'       => 'nullable|email',
+                'stateid'     => 'nullable',
+                'cityid'      => 'nullable',
+                'userid'      => 'required',
+                'expo_slugname' => 'required',
+                'username'    => 'nullable',
             ]);
+            $expomaster = ExpoMaster::where('slugname', $request->expo_slugname)->first();
 
 
+            // 1️⃣ Insert Visitor
             $visitor = Visitor::create([
-                'mobileno'     => $request->mobileno,
-                'companyname'  => $request->companyname,
-                'name'         => $request->name,
-                'email'        => $request->email,
-                'stateid'      => $request->stateid,
-                'cityid'       => $request->cityid,
-                'user_id'      => $request->userid,
-                'expo_id'      => $request->expoid,
+                'mobileno'    => $request->mobileno,
+                'companyname' => $request->companyname,
+                'name'        => $request->name,
+                'email'       => $request->email,
+                'stateid'     => $request->stateid,
+                'cityid'      => $request->cityid,
+                'user_id'     => $request->userid,
+                'expo_id'     => $expomaster->id,
+                'iStatus'     => 1,
+                'iSDelete'    => 0,
+                'enter_by'    => $request->username,
             ]);
 
+            // 2️⃣ Insert Visitor Visit
+            Visitorvisit::create([
+                'visitor_id' => $visitor->id,
+                'expo_id'    => $expomaster->id,
+                'user_id'    => $request->userid,
+            ]);
 
-            $visitortodaycount = Visitor::where('expo_id', $request->expoid)
+            // 3️⃣ Today count
+            $visitortodaycount = Visitorvisit::where('expo_id', $expomaster->id)
                 ->where('user_id', $request->userid)
                 ->whereDate('created_at', now()->toDateString())
                 ->count();
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
@@ -66,9 +89,11 @@ class VisitorApiController extends Controller
                 'message' => 'Visitor Added Successfully',
             ], 201);
         } catch (\Throwable $th) {
+            DB::rollBack();
+
             return response()->json([
                 'success' => false,
-                'error' => $th->getMessage(),
+                'message' => $th->getMessage(),
             ], 500);
         }
     }
@@ -76,11 +101,19 @@ class VisitorApiController extends Controller
     public function getByMobile(Request $request)
     {
         try {
+
             $request->validate([
                 'mobileno' => 'required',
+                'expo_slugname'   => 'nullable',
+                'userid'   => 'required',
             ]);
+            $expomaster = ExpoMaster::where('slugname', $request->expo_slugname)->first();
 
-            $visitor = Visitor::where('mobileno', $request->mobileno)->first();
+
+            // 1️⃣ Find visitor
+            $visitor = Visitor::where('mobileno', $request->mobileno)
+                ->where('iSDelete', 0)
+                ->first();
 
             if (!$visitor) {
                 return response()->json([
@@ -89,11 +122,65 @@ class VisitorApiController extends Controller
                 ], 404);
             }
 
+            // 2️⃣ Detect if any update fields are sent
+            $hasUpdateData = $request->filled([
+                'companyname',
+                'name',
+                'email',
+                'stateid',
+                'cityid'
+            ]);
+
+            // 3️⃣ Update visitor (safe update)
+            if ($hasUpdateData) {
+                $visitor->update([
+                    'companyname' => $request->companyname ?? $visitor->companyname,
+                    'name'        => $request->name ?? $visitor->name,
+                    'email'       => $request->email ?? $visitor->email,
+                    'stateid'     => $request->stateid ?? $visitor->stateid,
+                    'cityid'      => $request->cityid ?? $visitor->cityid,
+                    'user_id'     => $request->userid,
+                ]);
+            }
+
+            // 4️⃣ If expoid NOT provided → only update visitor
+            if (!$request->filled('expoid')) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $visitor,
+                    'message' => $hasUpdateData
+                        ? 'Visitor Updated Successfully'
+                        : 'Visitor fetched successfully',
+                ], 200);
+            }
+
+            // 5️⃣ Check visit exists for same expo
+            $visitExists = Visitorvisit::where('visitor_id', $visitor->id)
+                ->where('expo_id', $expomaster->id)
+                ->exists();
+
+            if ($visitExists) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $visitor,
+                    'message' => $hasUpdateData
+                        ? 'Visitor Updated Successfully'
+                        : 'Number already exists for this expo',
+                ], 200);
+            }
+
+            // 6️⃣ Create new visit
+            Visitorvisit::create([
+                'visitor_id' => $visitor->id,
+                'expo_id'    => $expomaster->id,
+                'user_id'    => $request->userid,
+            ]);
+
             return response()->json([
                 'success' => true,
                 'data' => $visitor,
-                'message' => 'Visitor record fetched successfully',
-            ], 200);
+                'message' => 'Visitor updated and visit added successfully',
+            ], 201);
         } catch (\Throwable $th) {
             return response()->json([
                 'success' => false,
@@ -157,7 +244,6 @@ class VisitorApiController extends Controller
             ], 500);
         }
     }
-
 
     public function visitorshow(Request $request)
     {
@@ -227,6 +313,40 @@ class VisitorApiController extends Controller
                     'today_visitors' => $todayVisitors,
                 ],
                 'message' => 'User wise visitor count fetched successfully',
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error' => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function ExpowiseCount(Request $request)
+    {
+        try {
+            $request->validate([
+                'user_id' => 'required|exists:User,id',
+                'expo_slugname' => 'required',
+            ]);
+            $expomaster = ExpoMaster::where('slugname', $request->expo_slugname)->first();
+
+            $totalVisitors = Visitorvisit::where('user_id', $request->user_id)
+                ->where('expo_id', $expomaster->id)
+                ->count();
+
+            $todayVisitors = Visitorvisit::where('user_id', $request->user_id)
+                ->where('expo_id', $expomaster->id)
+                ->whereDate('created_at', now()->toDateString())
+                ->count();
+
+
+
+            return response()->json([
+                'success' => true,
+                'totalVisitors' => $totalVisitors,
+                'todayVisitors' => $todayVisitors,
+                'message' => 'Expo-wise visitor count fetched successfully',
             ], 200);
         } catch (\Throwable $th) {
             return response()->json([

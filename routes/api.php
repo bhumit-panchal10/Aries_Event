@@ -53,6 +53,8 @@ Route::post('/IndustryList', [IndustryApiController::class, 'IndustryList']);
 Route::post('/Industryshow', [IndustryApiController::class, 'Industryshow']);
 Route::post('/IndustryUpdate', [IndustryApiController::class, 'IndustryUpdate']);
 Route::post('/IndustryDelete', [IndustryApiController::class, 'IndustryDelete']);
+Route::post('/Industrywise/Expo', [IndustryApiController::class, 'IndustrywiseExpo']);
+
 
 Route::post('/DepartmentAdd', [DepartmentApiController::class, 'DepartmentAdd']);
 Route::post('/DepartList', [DepartmentApiController::class, 'DepartList']);
@@ -92,3 +94,6 @@ Route::post('/Visitor/show', [VisitorApiController::class, 'visitorshow']);
 Route::post('/Visitor/Update', [VisitorApiController::class, 'visitorupdate']);
 
 Route::post('/visitor/user/count', [VisitorApiController::class, 'userVisitorCount']);
+Route::post('/Expowise/count', [VisitorApiController::class, 'ExpowiseCount']);
+
+Route::post('/Visitordata/Upload', [VisitorApiController::class, 'VisitordataUpload']);

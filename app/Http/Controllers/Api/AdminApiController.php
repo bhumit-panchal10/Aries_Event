@@ -69,7 +69,7 @@ class AdminApiController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid Customer credentials.',
+                    'message' => 'Invalid Admin credentials.',
                 ], 401);
             }
         } catch (ValidationException $e) {

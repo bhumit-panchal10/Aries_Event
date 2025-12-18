@@ -23,6 +23,7 @@ class Visitor extends Model
         'iSDelete',
         'created_at',
         'updated_at',
+        'enter_by'
     ];
 
     public function state()

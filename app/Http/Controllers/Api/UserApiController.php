@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Hash;
 use GuzzleHttp\Client;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Validator;
+
 
 
 class UserApiController extends Controller
@@ -32,7 +35,7 @@ class UserApiController extends Controller
 
             $data = ExpoAssignToUser::with([
                 'expomaster.city',
-                'expomaster.state'
+                'expomaster.state',
             ])
                 ->where('user_id', $request->user_id)
                 ->whereHas('expomaster')
@@ -40,7 +43,9 @@ class UserApiController extends Controller
                 ->map(function ($item) {
                     return [
                         'assign_id'   => $item->id,
+                        'expo_id'   => $item->expomaster->id ?? '',
                         'expo_name'   => $item->expomaster->name ?? '',
+                        'slugname'   => $item->expomaster->slugname ?? '',
                         'expo_date'   => $item->expomaster->date ?? '',
                         'city_name'   => $item->expomaster->city->name ?? '',
                         'state_name'  => $item->expomaster->state->stateName ?? '',
@@ -178,17 +183,38 @@ class UserApiController extends Controller
     }
     public function UserUpdate(Request $request)
     {
-        $request->validate(
-            [
-                "user_id" => 'required',
-                "name" => 'required',
-                "email" => 'required',
-                "mobile" => 'required',
-                "address" => 'required',
-                "department_id" => 'required',
 
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'user_id' => 'required|exists:User,id',
+                'name' => 'required',
+                'mobile' => [
+                    'required',
+                    'digits:10',
+                    Rule::unique(User::class, 'mobile')->ignore($request->user_id),
+                ],
+                'email' => 'required',
+                'address' => 'required',
+                'department_id' => 'required|exists:Department,id',
+            ],
+            [
+                'mobile.required' => 'Mobile number is required.',
+                'mobile.digits'   => 'Mobile number must be exactly 10 digits.',
+                'mobile.unique'   => 'This mobile number is already registered.',
+                'email.required'  => 'Email address is required.',
+                'department_id.exists' => 'Selected department does not exist.',
             ]
         );
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                // 'errors'  => $validator->errors(),
+            ], 422);
+        }
+
         try {
 
             $User = User::find($request->user_id);
