@@ -16,6 +16,7 @@ class ExpoMaster extends Model
         'city_id',
         'name',
         'date',
+        'slugname',
         'created_at',
         'updated_at',
     ];
