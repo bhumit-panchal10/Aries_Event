@@ -25,7 +25,7 @@
         "razorpay/razorpay": "^2.9",
         "spatie/browsershot": "^5.0",
         "spatie/laravel-permission": "^5.5",
-        "tymon/jwt-auth": "dev-develop"
+        "tymon/jwt-auth": "^2.0"
     },
     "require-dev": {
         "spatie/laravel-ignition": "^1.0",

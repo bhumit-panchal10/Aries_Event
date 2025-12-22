@@ -1,11 +1,10 @@
 # Captcha for Laravel 
 
 
-
 ## Preview
-![preview](samples.png)
+![preview](./assets/images/samples.png)
 
-- [Captcha for Laravel 8/9](#captcha-for-laravel-8-9)
+- [Captcha for Laravel 8/9/10/11/12](#captcha-for-laravel)
   * [Preview](#preview)
   * [Installation](#installation)
   * [Usage](#usage)
@@ -17,23 +16,24 @@
   * [Validation](#validation)
      + [Session Mode: ](#session-mode)
      + [Stateless Mode:](#stateless-mode)
-  
+  * [License](#license)   
+ - [Donate](#donate)
+ - [Other Proiects](#check-out-my-other-projects) 
 ## Installation
 
 
-Require this package with composer:
+To install this package, use Composer:
 ```
 composer require hpd/captcha
 ```
 ## Usage
 
-It doesn't need to add CaptchaServiceProvider to the providers array in config/app.php.
+There is no need to add CaptchaServiceProvider to the providers array in config/app.php.
 
 
 ## Configuration
 
-To use your own settings, first publish config/config.php.
-Then customize configuration properties as you like.
+To use your own settings, first publish the config/config.php file. Then, customize the configuration properties as needed.
 
 ```$ php artisan vendor:publish config/config.php```
 ```php
@@ -61,7 +61,7 @@ return [
 ];
 ```
 ### Properties
-The following properties are customizable from published config.php file.
+The following properties can be customized in the published config.php file.
 ```php
     protected string $bgColor="#000000";
     protected string $color="#FFFFFF";
@@ -86,17 +86,17 @@ The following properties are customizable from published config.php file.
 ```
 
 ## How to use
-You can use following helper functions in your project to get Captcha image.
+You can use the following helper functions in your project to get a Captcha image
 ```php
     captcha(); // returns image
     
     captcha_get_src()// returns image source(URl)
 
-    captcha_get_html()// returns img html element
+    captcha_get_img()// returns img html element
 ```
 ### Use desired configuration
 ```php
-//If omitted configuration optional parameter, 'default' configuration will be used.
+//If no configuration is specified, the default configuration will be used.
 
     captcha('default'); // returns image
     
@@ -105,15 +105,14 @@ You can use following helper functions in your project to get Captcha image.
     captcha_get_html('dark')// returns img html element
 ```
 ### Example
-
-Get Captcha image src:
+To get the Captcha image source:
 ```html
-    <img src="{{!! captcha_get_src()!!}}" titile="Captcha" alt="Captcha">
+    <img src="{!! captcha_get_src() !!}" titile="Captcha" alt="Captcha">
 ```
-Get img html element:
+To get the image HTML element:
 ```html
     <div>
-        {{!! captcha_get_html()!!}}
+        {!! captcha_get_html() !!}
     </div>
 ```
 
@@ -134,8 +133,8 @@ Get img html element:
     });
 ```
 ### Stateless Mode:
-You can get image and code from this url:
-`http://localhost/captcha/api/default`
+You can get the image and code from this URL:
+`http://[yourdomain.com]/captcha/api/default`
 It returns:
 ```php
      [
@@ -144,10 +143,8 @@ It returns:
           'image'=>'data:image/png;base64,'.$this->createBase64FromImg($this->image)
           ]
 ```
-
-Then to validate captcha, you should send 'code' to the validator.
-
-Set config type same as the type that you previously selected.
+To validate the Captcha, send the 'code' to the validator.
+Set the config type to match the one previously selected:
 ```php
     $validator = validator()->make(request()->all(),
         ['captcha' => 'required|captcha_api:'. request('code') . ',default'];
@@ -161,6 +158,27 @@ Set config type same as the type that you previously selected.
         // continue
     }
 ```
+## License
 
-        
- 
+This project is licensed under the [Proprietary License](./LICENSE).
+
+## Donate
+
+If you like this project and want to support it, feel free to send USDT donations to the addresses below. Thank you! 🙏
+
+![Tether](https://img.shields.io/badge/Tether-blue?logo=tether&logoColor=white)
+| Network | Address |
+|---------|---------|
+| ![Tether ERC20](https://img.shields.io/badge/USDT-ERC20-green?logo=tether) | `0x2bFcEcCF2f25d48CbdC05a9d55A46262a0A6E542` | 
+| ![Tether TRC20](https://img.shields.io/badge/USTD-TRC20-red?logo=tether)    | `TEHzXzg4nMp7MW5pVH6fGmuq7JBaFovMW3` | 
+
+Your support allows me to continue maintaining and improving this project. Thank you so much for your contribution! 🙏
+
+## Check Out My Other Projects
+
+Hey! If you liked this package, you might enjoy some of my other work too:
+
+- [Validatify](https://github.com/hamid-hpd/validatify.git) – A PHP input validation library.
+- [jQuery Confirmation Dialog](https://github.com/hamid-hpd/jquery-confirm-dialog.git) – Customizable jQuery Confirmation Dialog Plugin with RTL and Theming Support
+
+I'm always building and sharing new stuff — feel free to take a look, star ⭐ what you like, or even open a PR!

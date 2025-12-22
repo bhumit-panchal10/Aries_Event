@@ -16,7 +16,10 @@
     "autoload": {
         "psr-4": {
             "Hpd\\Captcha\\": "src/"
-        }
+        },        
+        "files": [
+            "src/helper.php"
+        ]
     },
     "extra": {
         "laravel": {

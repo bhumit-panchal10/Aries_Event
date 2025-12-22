@@ -1,6 +1,4 @@
-<?php
-
-namespace Darryldecode\Cart;
+<?php namespace Darryldecode\Cart;
 
 use Darryldecode\Cart\Exceptions\InvalidConditionException;
 use Darryldecode\Cart\Exceptions\InvalidItemException;
@@ -66,7 +64,7 @@ class Cart
 
     /**
      * This holds the currently added item id in cart for association
-     *
+     * 
      * @var
      */
     protected $currentItemId;
@@ -149,7 +147,6 @@ class Cart
      * @param string|array $id
      * @param string $name
      * @param float $price
-     * @param string $size
      * @param int $quantity
      * @param array $attributes
      * @param CartCondition|array $conditions
@@ -157,9 +154,7 @@ class Cart
      * @return $this
      * @throws InvalidItemException
      */
-
-
-    public function add($id, $productid  = null, $categoryId = null, $attribute_text  = null, $name = null, $price = null, $symbol = null, $quantity = null, $attributes = array(), $conditions = array(), $associatedModel = null)
+    public function add($id, $name = null, $price = null, $quantity = null, $attributes = array(), $conditions = array(), $associatedModel = null)
     {
         // if the first argument is an array,
         // we will need to call add again
@@ -170,12 +165,8 @@ class Cart
                 foreach ($id as $item) {
                     $this->add(
                         $item['id'],
-                        $item['productid'],
-                        $item['categoryId'],
-                        $item['attribute_text'],
                         $item['name'],
                         $item['price'],
-                        $item['symbol'],
                         $item['quantity'],
                         Helpers::issetAndHasValueOrAssignDefault($item['attributes'], array()),
                         Helpers::issetAndHasValueOrAssignDefault($item['conditions'], array()),
@@ -185,12 +176,8 @@ class Cart
             } else {
                 $this->add(
                     $id['id'],
-                    $id['productid'],
-                    $id['categoryId'],
-                    $id['attribute_text'],
                     $id['name'],
                     $id['price'],
-                    $id['symbol'],
                     $id['quantity'],
                     Helpers::issetAndHasValueOrAssignDefault($id['attributes'], array()),
                     Helpers::issetAndHasValueOrAssignDefault($id['conditions'], array()),
@@ -203,12 +190,8 @@ class Cart
 
         $data = array(
             'id' => $id,
-            'productid' => $productid,
-            'categoryId' => $categoryId,
-            'attribute_text' => $attribute_text,
             'name' => $name,
             'price' => Helpers::normalizePrice($price),
-            'symbol' => $symbol,
             'quantity' => $quantity,
             'attributes' => new ItemAttributeCollection($attributes),
             'conditions' => $conditions
@@ -689,8 +672,8 @@ class Cart
      */
     public function getContent()
     {
-        return (new CartCollection($this->session->get($this->sessionKeyCartItems)))->reject(function ($item) {
-            return !($item instanceof ItemCollection);
+        return (new CartCollection($this->session->get($this->sessionKeyCartItems)))->reject(function($item) {
+            return ! ($item instanceof ItemCollection);
         });
     }
 
@@ -716,9 +699,8 @@ class Cart
         $rules = array(
             'id' => 'required',
             'price' => 'required|numeric',
-            'quantity' => 'required',
+            'quantity' => 'required|numeric|min:0.1',
             'name' => 'required',
-
         );
 
         $validator = CartItemValidator::make($item, $rules);

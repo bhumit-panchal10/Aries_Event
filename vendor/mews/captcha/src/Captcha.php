@@ -344,7 +344,7 @@ class Captcha
         }
 
         $hash = $this->hasher->make($key);
-        if ($this->encrypt) $hash = Crypt::encrypt($hash);
+        if($this->encrypt) $hash = Crypt::encrypt($hash);
 
         $this->session->put('captcha', [
             'sensitive' => $this->sensitive,
@@ -418,8 +418,11 @@ class Captcha
      */
     protected function fontColor(): string
     {
-        $color = '#000000';
-
+        if (!empty($this->fontColors)) {
+            $color = $this->fontColors[rand(0, count($this->fontColors) - 1)];
+        } else {
+            $color = '#' . str_pad(dechex(mt_rand(0, 0xFFFFFF)), 6, '0', STR_PAD_LEFT);
+        }
 
         return $color;
     }
@@ -441,7 +444,20 @@ class Captcha
      */
     protected function lines()
     {
-        return [];
+        for ($i = 0; $i <= $this->lines; $i++) {
+            $this->image->line(
+                rand(0, $this->image->width()) + $i * rand(0, $this->image->height()),
+                rand(0, $this->image->height()),
+                rand(0, $this->image->width()),
+                rand(0, $this->image->height()),
+                function ($draw) {
+                    /* @var Font $draw */
+                    $draw->color($this->fontColor());
+                }
+            );
+        }
+
+        return $this->image;
     }
 
     /**
@@ -469,7 +485,7 @@ class Captcha
             $value = $this->str->lower($value);
         }
 
-        if ($encrypt) $key = Crypt::decrypt($key);
+        if($encrypt) $key = Crypt::decrypt($key);
         $check = $this->hasher->check($value, $key);
         // if verify pass,remove session
         if ($check) {
@@ -485,8 +501,7 @@ class Captcha
      * @param string $key
      * @return string
      */
-    protected function get_cache_key($key)
-    {
+    protected function get_cache_key($key) {
         return 'captcha_' . md5($key);
     }
 
@@ -506,8 +521,8 @@ class Captcha
 
         $this->configure($config);
 
-        if (!$this->sensitive) $value = $this->str->lower($value);
-        if ($this->encrypt) $key = Crypt::decrypt($key);
+        if(!$this->sensitive) $value = $this->str->lower($value);
+        if($this->encrypt) $key = Crypt::decrypt($key);
         return $this->hasher->check($value, $key);
     }
 
