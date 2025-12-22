@@ -20,6 +20,8 @@ use GuzzleHttp\Client;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
+
 
 
 
@@ -400,6 +402,125 @@ class VisitorApiController extends Controller
                 'message' => 'Visitor updated successfully.'
             ], 200);
         } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    public function VisitordataUpload(Request $request)
+    {
+        $request->validate([
+            'type'     => 'required|in:industry,pre_register,visited',
+            'expo_id'  => 'nullable',
+            'industry_id'  => 'nullable',
+            'user_id'  => 'required',
+            'user_name'  => 'required',
+            'file'     => 'required|mimes:xls,xlsx',
+        ]);
+
+        $rows = Excel::toArray([], $request->file('file'))[0];
+
+        DB::beginTransaction();
+        try {
+
+            foreach ($rows as $key => $row) {
+                if ($key == 0) continue; // skip header
+
+                $name    = $row[0] ?? null;
+                $mobile  = $row[1] ?? null;
+                $email   = $row[2] ?? null;
+                $company = $row[3] ?? null;
+                $state   = $row[4] ?? null;
+                $city    = $row[5] ?? null;
+
+                if (!$mobile) continue;
+
+                /** -------------------------------
+                 * FIND OR CREATE VISITOR
+                 * --------------------------------*/
+                $visitor = Visitor::where('mobileno', $mobile)->first();
+
+                if (!$visitor) {
+                    $visitor = Visitor::create([
+                        'name'        => $name,
+                        'mobileno'    => $mobile,
+                        'email'       => $email,
+                        'companyname' => $company,
+                        'stateid'     => $state,
+                        'cityid'      => $city,
+                        'expo_id'     => $request->expo_id,
+                        'industry_id'     => $request->industry_id,
+                        'enter_by'    => $request->user_name ?? '',
+                    ]);
+                }
+
+                /** -------------------------------
+                 * PHASE 1 – INDUSTRY
+                 * --------------------------------*/
+                if ($request->type === 'industry') {
+                    continue; // only visitor insert
+                }
+
+                /** -------------------------------
+                 * CHECK VISITOR VISIT
+                 * --------------------------------*/
+                $visit = Visitorvisit::where([
+                    'visitor_id' => $visitor->id,
+                    'expo_id'    => $request->expo_id
+                ])->first();
+
+                /** -------------------------------
+                 * PHASE 2 – PRE REGISTER
+                 * --------------------------------*/
+                if ($request->type === 'pre_register') {
+
+                    if ($visit) {
+                        $visit->update([
+                            'Is_Pre' => 1
+                        ]);
+                    } else {
+                        Visitorvisit::create([
+                            'visitor_id' => $visitor->id,
+                            'expo_id'    => $request->expo_id,
+                            'Is_Pre'     => 1,
+                            'Is_Visit'  => 0,
+                            'user_id'   => $request->user_id ?? 0,
+                        ]);
+                    }
+                }
+
+                /** -------------------------------
+                 * PHASE 3 – VISITED VISITOR
+                 * --------------------------------*/
+                if ($request->type === 'visited') {
+
+                    if ($visit) {
+                        $visit->update([
+                            'Is_Visit' => 1
+                        ]);
+                    } else {
+                        Visitorvisit::create([
+                            'visitor_id' => $visitor->id,
+                            'expo_id'    => $request->expo_id,
+                            'Is_Pre'     => 0,
+                            'Is_Visit'  => 1,
+                            'user_id'   => $request->user_id ?? 0,
+                        ]);
+                    }
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Visitor Excel uploaded successfully'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
