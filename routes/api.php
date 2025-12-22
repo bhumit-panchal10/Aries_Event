@@ -97,3 +97,5 @@ Route::post('/visitor/user/count', [VisitorApiController::class, 'userVisitorCou
 Route::post('/Expowise/count', [VisitorApiController::class, 'ExpowiseCount']);
 
 Route::post('/Visitordata/Upload', [VisitorApiController::class, 'VisitordataUpload']);
+Route::post('/admin_visitor_list', [VisitorApiController::class, 'adminVisitorList']);
+Route::post('/admin_visitors_export', [VisitorApiController::class, 'exportVisitors']);

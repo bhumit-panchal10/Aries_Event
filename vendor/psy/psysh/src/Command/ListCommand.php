@@ -3,7 +3,7 @@
 /*
  * This file is part of Psy Shell.
  *
- * (c) 2012-2023 Justin Hileman
+ * (c) 2012-2025 Justin Hileman
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -26,7 +26,6 @@ use Psy\Output\ShellOutput;
 use Psy\VarDumper\Presenter;
 use Psy\VarDumper\PresenterAware;
 use Symfony\Component\Console\Formatter\OutputFormatter;
-use Symfony\Component\Console\Helper\TableHelper;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -36,8 +35,8 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class ListCommand extends ReflectingCommand implements PresenterAware
 {
-    protected $presenter;
-    protected $enumerators;
+    protected Presenter $presenter;
+    protected array $enumerators;
 
     /**
      * PresenterAware interface.
@@ -52,7 +51,7 @@ class ListCommand extends ReflectingCommand implements PresenterAware
     /**
      * {@inheritdoc}
      */
-    protected function configure()
+    protected function configure(): void
     {
         list($grep, $insensitive, $invert) = FilterOptions::getOptions();
 
@@ -115,7 +114,7 @@ HELP
      *
      * @return int 0 if everything went fine, or an exit code
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->validateInput($input);
         $this->initEnumerators();
@@ -123,7 +122,7 @@ HELP
         $method = $input->getOption('long') ? 'writeLong' : 'write';
 
         if ($target = $input->getArgument('target')) {
-            list($target, $reflector) = $this->getTargetAndReflector($target);
+            list($target, $reflector) = $this->getTargetAndReflector($target, $output);
         } else {
             $reflector = null;
         }
@@ -182,9 +181,20 @@ HELP
             return;
         }
 
+        $formatter = $output->getFormatter();
+
         foreach ($result as $label => $items) {
-            $names = \array_map([$this, 'formatItemName'], $items);
-            $output->writeln(\sprintf('<strong>%s</strong>: %s', $label, \implode(', ', $names)));
+            // Pre-format each item individually to avoid O(n^2) performance
+            // in Symfony's OutputFormatter when processing large strings with many style tags.
+            $names = \array_map(function ($item) use ($formatter) {
+                return $formatter->format($this->formatItemName($item));
+            }, $items);
+
+            // Pre-format the label and join with pre-formatted names
+            $line = $formatter->format(\sprintf('<strong>%s</strong>: ', $label)).\implode(', ', $names);
+
+            // Write raw since we've already formatted everything
+            $output->writeln($line, OutputInterface::OUTPUT_RAW);
         }
     }
 
@@ -213,11 +223,7 @@ HELP
                 $table->addRow([$this->formatItemName($item), $item['value']]);
             }
 
-            if ($table instanceof TableHelper) {
-                $table->render($output);
-            } else {
-                $table->render();
-            }
+            $table->render();
         }
     }
 

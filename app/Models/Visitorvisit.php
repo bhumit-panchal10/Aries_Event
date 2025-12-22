@@ -19,4 +19,10 @@ class Visitorvisit extends Model
         'Is_Pre',
         'Is_Visit',
     ];
+
+    // In Visitorvisit model
+    public function visitor()
+    {
+        return $this->belongsTo(Visitor::class, 'visitor_id'); // Adjust the foreign key if needed
+    }
 }

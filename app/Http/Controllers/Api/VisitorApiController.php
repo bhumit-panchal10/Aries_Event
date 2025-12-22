@@ -21,8 +21,8 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
-
-
+use App\Exports\VisitorsExport;
+use App\Models\StateMaster;
 
 
 class VisitorApiController extends Controller
@@ -409,61 +409,301 @@ class VisitorApiController extends Controller
         }
     }
 
+    // public function VisitordataUpload(Request $request)
+    // {
+    //     $request->validate([
+    //         'type'     => 'required|in:industry,pre_register,visited',
+    //         'expo_id'  => 'nullable',
+    //         'industry_id'  => 'nullable',
+    //         'user_id'  => 'required',
+    //         'user_name'  => 'required',
+    //         'file'     => 'required|mimes:xls,xlsx',
+    //     ]);
+
+    //     $rows = Excel::toArray([], $request->file('file'))[0];
+
+    //     DB::beginTransaction();
+    //     try {
+
+    //         foreach ($rows as $key => $row) {
+    //             if ($key == 0) continue; // skip header
+
+    //             $name    = $row[0] ?? null;
+    //             $mobile  = $row[1] ?? null;
+    //             $email   = $row[2] ?? null;
+    //             $company = $row[3] ?? null;
+    //             $state   = $row[4] ?? null;
+    //             $city    = $row[5] ?? null;
+
+    //             if (!$mobile) continue;
+
+    //             /** -------------------------------
+    //              * FIND OR CREATE VISITOR
+    //              * --------------------------------*/
+    //             $visitor = Visitor::where('mobileno', $mobile)->first();
+
+    //             if (!$visitor) {
+    //                 $visitor = Visitor::create([
+    //                     'name'        => $name,
+    //                     'mobileno'    => $mobile,
+    //                     'email'       => $email,
+    //                     'companyname' => $company,
+    //                     'stateid'     => $state,
+    //                     'cityid'      => $city,
+    //                     'expo_id'     => $request->expo_id,
+    //                     'industry_id'     => $request->industry_id,
+    //                     'enter_by'    => $request->user_name ?? '',
+    //                 ]);
+    //             }
+
+    //             /** -------------------------------
+    //              * PHASE 1 – INDUSTRY
+    //              * --------------------------------*/
+    //             if ($request->type === 'industry') {
+    //                 continue; // only visitor insert
+    //             }
+
+    //             /** -------------------------------
+    //              * CHECK VISITOR VISIT
+    //              * --------------------------------*/
+    //             $visit = Visitorvisit::where([
+    //                 'visitor_id' => $visitor->id,
+    //                 'expo_id'    => $request->expo_id
+    //             ])->first();
+
+    //             /** -------------------------------
+    //              * PHASE 2 – PRE REGISTER
+    //              * --------------------------------*/
+    //             if ($request->type === 'pre_register') {
+
+    //                 if ($visit) {
+    //                     $visit->update([
+    //                         'Is_Pre' => 1
+    //                     ]);
+    //                 } else {
+    //                     Visitorvisit::create([
+    //                         'visitor_id' => $visitor->id,
+    //                         'expo_id'    => $request->expo_id,
+    //                         'Is_Pre'     => 1,
+    //                         'Is_Visit'  => 0,
+    //                         'user_id'   => $request->user_id ?? 0,
+    //                     ]);
+    //                 }
+    //             }
+
+    //             /** -------------------------------
+    //              * PHASE 3 – VISITED VISITOR
+    //              * --------------------------------*/
+    //             if ($request->type === 'visited') {
+
+    //                 if ($visit) {
+    //                     $visit->update([
+    //                         'Is_Visit' => 1
+    //                     ]);
+    //                 } else {
+    //                     Visitorvisit::create([
+    //                         'visitor_id' => $visitor->id,
+    //                         'expo_id'    => $request->expo_id,
+    //                         'Is_Pre'     => 0,
+    //                         'Is_Visit'  => 1,
+    //                         'user_id'   => $request->user_id ?? 0,
+    //                     ]);
+    //                 }
+    //             }
+    //         }
+
+    //         DB::commit();
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'Visitor Excel uploaded successfully'
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
 
     public function VisitordataUpload(Request $request)
     {
         $request->validate([
-            'type'     => 'required|in:industry,pre_register,visited',
-            'expo_id'  => 'nullable',
-            'industry_id'  => 'nullable',
-            'user_id'  => 'required',
+            'type'       => 'required|in:industry,pre_register,visited',
+            'expo_id'    => 'nullable',
+            'industry_id'=> 'nullable',
+            'user_id'    => 'required',
             'user_name'  => 'required',
-            'file'     => 'required|mimes:xls,xlsx',
+            'file'       => 'required|mimes:xls,xlsx',
         ]);
 
-        $rows = Excel::toArray([], $request->file('file'))[0];
+        $file = $request->file('file');
+        $rows = Excel::toArray([], $file)[0];
+        
+        // 1. Header check
+        $expectedHeaders = ['Name', 'Mobile', 'Email', 'Company', 'State', 'City'];
+        $actualHeaders = $rows[0] ?? [];
+        
+        // Check if all required headers are present
+        foreach ($expectedHeaders as $expectedHeader) {
+            if (!in_array($expectedHeader, $actualHeaders)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Invalid Excel format. Missing header: '$expectedHeader'. Required headers: " . implode(', ', $expectedHeaders)
+                ], 400);
+            }
+        }
+        
+        // Validate header order (optional)
+        for ($i = 0; $i < count($expectedHeaders); $i++) {
+            if (($actualHeaders[$i] ?? null) !== $expectedHeaders[$i]) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Invalid header order. Expected order: " . implode(', ', $expectedHeaders)
+                ], 400);
+            }
+        }
 
         DB::beginTransaction();
         try {
+            $importedCount = 0;
+            $skippedCount = 0;
+            $errors = [];
+            
+            // Cache states and cities to reduce database queries
+            $states = StateMaster::pluck('stateId', 'stateName')->mapWithKeys(function ($id, $name) {
+                return [strtolower(trim($name)) => $id];
+            });
+            
+            $cities = CityMaster::pluck('id', 'name')->mapWithKeys(function ($id, $name) {
+                return [strtolower(trim($name)) => $id];
+            });
 
             foreach ($rows as $key => $row) {
                 if ($key == 0) continue; // skip header
-
-                $name    = $row[0] ?? null;
-                $mobile  = $row[1] ?? null;
-                $email   = $row[2] ?? null;
-                $company = $row[3] ?? null;
-                $state   = $row[4] ?? null;
-                $city    = $row[5] ?? null;
-
-                if (!$mobile) continue;
-
-                /** -------------------------------
-                 * FIND OR CREATE VISITOR
-                 * --------------------------------*/
-                $visitor = Visitor::where('mobileno', $mobile)->first();
-
+                
+                $name    = trim($row[0] ?? '');
+                $mobile  = trim($row[1] ?? '');
+                $email   = trim($row[2] ?? '');
+                $company = trim($row[3] ?? '');
+                $stateName = trim($row[4] ?? '');
+                $cityName  = trim($row[5] ?? '');
+                
+                // 2. Put validation for each row
+                $rowErrors = [];
+                
+                // Validate mobile
+                if (!$mobile) {
+                    $rowErrors[] = "Row " . ($key + 1) . ": Mobile number is required";
+                } elseif (!preg_match('/^[0-9]{10}$/', $mobile)) {
+                    $rowErrors[] = "Row " . ($key + 1) . ": Invalid mobile number format (should be 10 digits)";
+                }
+                
+                // Validate name
+                if (!$name) {
+                    $rowErrors[] = "Row " . ($key + 1) . ": Name is required";
+                }
+                
+                // Validate email
+                if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $rowErrors[] = "Row " . ($key + 1) . ": Invalid email format";
+                }
+                
+                // 3. Set state and city ID instead of name and check name validation
+                $stateId = null;
+                $cityId = null;
+                
+                if ($stateName) {
+                    $stateKey = strtolower($stateName);
+                    $stateId = $states[$stateKey] ?? null;
+                    if (!$stateId) {
+                        $rowErrors[] = "Row " . ($key + 1) . ": Invalid state name '$stateName'";
+                    }
+                }
+                
+                if ($cityName) {
+                    $cityKey = strtolower($cityName);
+                    $cityId = $cities[$cityKey] ?? null;
+                    if (!$cityId) {
+                        $rowErrors[] = "Row " . ($key + 1) . ": Invalid city name '$cityName'";
+                        
+                        // Optional: Try to find city by partial match or suggest alternatives
+                        $similarCities = CityMaster::where('name', 'LIKE', '%' . $cityName . '%')->pluck('name')->toArray();
+                        if (!empty($similarCities)) {
+                            $rowErrors[count($rowErrors) - 1] .= ". Did you mean: " . implode(', ', array_slice($similarCities, 0, 3));
+                        }
+                    }
+                }
+                
+                // If there are errors for this row, skip it
+                if (!empty($rowErrors)) {
+                    $errors = array_merge($errors, $rowErrors);
+                    $skippedCount++;
+                    continue;
+                }
+                
+                // Check if mobile already exists (but not for industry type)
+                if ($request->type !== 'industry') {
+                    $existingVisitor = Visitor::where('mobileno', $mobile)
+                        ->where('expo_id', $request->expo_id)
+                        ->first();
+                        
+                    if ($existingVisitor) {
+                        $visitor = $existingVisitor;
+                    } else {
+                        // For non-industry imports, visitor must exist in the system
+                        $errors[] = "Row " . ($key + 1) . ": Visitor with mobile $mobile not found in system. Please import industry data first.";
+                        $skippedCount++;
+                        continue;
+                    }
+                } else {
+                    // For industry type, find or create visitor
+                    $visitor = Visitor::where('mobileno', $mobile)->first();
+                }
+                
                 if (!$visitor) {
-                    $visitor = Visitor::create([
+                    $visitorData = [
                         'name'        => $name,
                         'mobileno'    => $mobile,
-                        'email'       => $email,
-                        'companyname' => $company,
-                        'stateid'     => $state,
-                        'cityid'      => $city,
-                        'expo_id'     => $request->expo_id,
-                        'industry_id'     => $request->industry_id,
+                        'email'       => $email ?: null,
+                        'companyname' => $company ?: null,
+                        'stateid'     => $stateId,
+                        'cityid'      => $cityId,
                         'enter_by'    => $request->user_name ?? '',
-                    ]);
+                    ];
+                    
+                    // Only set these if provided
+                    if ($request->expo_id) {
+                        $visitorData['expo_id'] = $request->expo_id;
+                    }
+                    if ($request->industry_id) {
+                        $visitorData['industry_id'] = $request->industry_id;
+                    }
+                    
+                    $visitor = Visitor::create($visitorData);
+                } else {
+                    // Update existing visitor with new data if needed
+                    $updateData = [];
+                    if ($name && !$visitor->name) $updateData['name'] = $name;
+                    if ($email && !$visitor->email) $updateData['email'] = $email;
+                    if ($company && !$visitor->companyname) $updateData['companyname'] = $company;
+                    if ($stateId && !$visitor->stateid) $updateData['stateid'] = $stateId;
+                    if ($cityId && !$visitor->cityid) $updateData['cityid'] = $cityId;
+                    
+                    if (!empty($updateData)) {
+                        $visitor->update($updateData);
+                    }
                 }
-
+                
                 /** -------------------------------
                  * PHASE 1 – INDUSTRY
                  * --------------------------------*/
                 if ($request->type === 'industry') {
+                    $importedCount++;
                     continue; // only visitor insert
                 }
-
+                
                 /** -------------------------------
                  * CHECK VISITOR VISIT
                  * --------------------------------*/
@@ -471,12 +711,11 @@ class VisitorApiController extends Controller
                     'visitor_id' => $visitor->id,
                     'expo_id'    => $request->expo_id
                 ])->first();
-
+                
                 /** -------------------------------
                  * PHASE 2 – PRE REGISTER
                  * --------------------------------*/
                 if ($request->type === 'pre_register') {
-
                     if ($visit) {
                         $visit->update([
                             'Is_Pre' => 1
@@ -486,17 +725,17 @@ class VisitorApiController extends Controller
                             'visitor_id' => $visitor->id,
                             'expo_id'    => $request->expo_id,
                             'Is_Pre'     => 1,
-                            'Is_Visit'  => 0,
-                            'user_id'   => $request->user_id ?? 0,
+                            'Is_Visit'   => 0,
+                            'user_id'    => $request->user_id ?? 0,
                         ]);
                     }
+                    $importedCount++;
                 }
-
+                
                 /** -------------------------------
                  * PHASE 3 – VISITED VISITOR
                  * --------------------------------*/
                 if ($request->type === 'visited') {
-
                     if ($visit) {
                         $visit->update([
                             'Is_Visit' => 1
@@ -506,24 +745,144 @@ class VisitorApiController extends Controller
                             'visitor_id' => $visitor->id,
                             'expo_id'    => $request->expo_id,
                             'Is_Pre'     => 0,
-                            'Is_Visit'  => 1,
-                            'user_id'   => $request->user_id ?? 0,
+                            'Is_Visit'   => 1,
+                            'user_id'    => $request->user_id ?? 0,
                         ]);
                     }
+                    $importedCount++;
                 }
             }
 
             DB::commit();
-
-            return response()->json([
+            
+            $response = [
                 'success' => true,
-                'message' => 'Visitor Excel uploaded successfully'
-            ]);
+                'message' => 'Visitor Excel uploaded successfully',
+                'stats' => [
+                    'total_rows' => count($rows) - 1, // excluding header
+                    'imported' => $importedCount,
+                    'skipped' => $skippedCount,
+                    'has_errors' => !empty($errors)
+                ]
+            ];
+            
+            if (!empty($errors)) {
+                $response['errors'] = array_slice($errors, 0, 20); // Show first 20 errors
+                if (count($errors) > 20) {
+                    $response['message'] .= ' (' . count($errors) . ' errors found, showing first 20)';
+                }
+            }
+            
+            return response()->json($response);
+            
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
+                'trace'   => config('app.debug') ? $e->getTraceAsString() : null
+            ], 500);
+        }
+    }
+
+    public function adminVisitorList(Request $request)
+    {
+        try {
+            $request->validate([
+                'expo_id'  => 'required',
+                'industry_id'  => 'required',
+                'Is_Pre'   => 'required',
+                'Is_Visit'   => 'required'
+            ]);
+            $perPage = 10;
+            $page = $request->page ?? 1;
+
+            $query = Visitorvisit::with(['visitor.state', 'visitor.city'])
+            ->where('expo_id', $request->expo_id)
+            ->whereHas('visitor', function ($q) use ($request) {
+                $q->where('industry_id', $request->industry_id);
+            });
+
+            if ($request->Is_Pre != 2) {
+                $query->where('Is_Pre', $request->Is_Pre);
+            }
+
+            if ($request->Is_Visit != 2) {
+                $query->where('Is_Visit', $request->Is_Visit);
+            }
+
+            $visitors = $query->paginate($perPage, ['*'], 'page', $page);
+            if ($visitors->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Visitor not found',
+                ], 404);
+            } else {
+                $data = [];
+                foreach ($visitors as $visit) {
+                    $data[] = [
+                        'visitorid'   => $visit->visitor->id,
+                        'mobileno'    => $visit->visitor->mobileno,
+                        'companyname' => $visit->visitor->companyname,
+                        'name'        => $visit->visitor->name,
+                        'email'       => $visit->visitor->email,
+                        'stateid'     => $visit->visitor->stateid,
+                        'cityid'      => $visit->visitor->cityid,
+                        'state_name'  => $visit->visitor->state ? $visit->visitor->state->stateName : null, // Assuming 'stateName' column
+                        'city_name'   => $visit->visitor->city ? $visit->visitor->city->name : null,    // Assuming 'cityName' column
+                    ];
+                }
+                return response()->json([
+                    'success' => true,
+                    'count'   => $visitors->total(),
+                    'data'    => $data,
+                    'meta'    => [
+                        'total'        => $visitors->total(),
+                        'per_page'     => $visitors->perPage(),
+                        'current_page' => $visitors->currentPage(),
+                        'last_page'    => $visitors->lastPage(),
+                        'from'         => $visitors->firstItem(),
+                        'to'           => $visitors->lastItem(),
+                    ],
+                    'message' => 'Visitor record fetched successfully',
+                ], 200);
+            }     
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error'   => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function exportVisitors(Request $request)
+    {
+        try {
+            $request->validate([
+                'expo_id'     => 'required',
+                'industry_id' => 'required',
+                'Is_Pre'      => 'required',
+                'Is_Visit'    => 'required'
+            ]);
+
+            // Generate filename with timestamp
+            $filename = 'visitors_' . date('Y_m_d_His') . '.xlsx';
+            
+            // Return Excel download
+            return Excel::download(
+                new VisitorsExport(
+                    $request->expo_id,
+                    $request->industry_id,
+                    $request->Is_Pre,
+                    $request->Is_Visit
+                ),
+                $filename
+            );
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error'   => $th->getMessage(),
             ], 500);
         }
     }
