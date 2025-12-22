@@ -19,6 +19,7 @@ class Visitor extends Model
         'cityid',
         'user_id',
         'expo_id',
+        'industry_id',
         'iStatus',
         'iSDelete',
         'created_at',
