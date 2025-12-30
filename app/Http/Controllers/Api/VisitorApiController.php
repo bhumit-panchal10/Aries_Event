@@ -23,7 +23,7 @@ use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\VisitorsExport;
 use App\Models\StateMaster;
-
+use Illuminate\Support\Facades\Validator;
 
 class VisitorApiController extends Controller
 
@@ -50,6 +50,7 @@ class VisitorApiController extends Controller
                 'userid'      => 'required',
                 'expo_slugname' => 'required',
                 'username'    => 'nullable',
+                'address' => 'nullable'
             ]);
             $expomaster = ExpoMaster::where('slugname', $request->expo_slugname)->first();
 
@@ -63,6 +64,7 @@ class VisitorApiController extends Controller
                 'stateid'     => $request->stateid,
                 'cityid'      => $request->cityid,
                 'user_id'     => $request->userid,
+                'address'     => $request->address,    
                 'expo_id'     => $expomaster->id,
                 'iStatus'     => 1,
                 'iSDelete'    => 0,
@@ -142,6 +144,7 @@ class VisitorApiController extends Controller
                     'stateid'     => $request->stateid ?? $visitor->stateid,
                     'cityid'      => $request->cityid ?? $visitor->cityid,
                     'user_id'     => $request->userid,
+                    'address'     => $request->address
                 ]);
             }
 
@@ -230,6 +233,7 @@ class VisitorApiController extends Controller
                     'cityid'      => $visit->cityid,
                     'stateName'   => $visit->state->stateName ?? '',
                     'cityName'    => $visit->city->name ?? '',
+                    'address'     => $visit->address,
                 ];
             }
 
@@ -277,6 +281,7 @@ class VisitorApiController extends Controller
                     'cityid'      => $visit->cityid,
                     'stateName'   => $visit->state->stateName ?? '',
                     'cityName'    => $visit->city->name ?? '',
+                    'address'     => $visit->address,
                 ];
             }
 
@@ -380,7 +385,8 @@ class VisitorApiController extends Controller
             $request->validate([
                 'name'          => 'required|string|max:255',
                 'mobile'        => 'required|digits:10|unique:visitor,mobileno,' . $visitor->id,
-                'email'         => 'required|email|unique:visitor,email,' . $visitor->id,
+                //'email'         => 'required|email|unique:visitor,email,' . $visitor->id,
+                'email'         => 'required|email',
                 'companyname'       => 'required|string',
                 'state_id' => 'required|exists:state,stateId',
                 'city_id' => 'required|exists:City,id',
@@ -395,6 +401,7 @@ class VisitorApiController extends Controller
                 'companyname'       => $request->companyname,
                 'stateid' => $request->state_id,
                 'cityid' => $request->city_id,
+                'address'     => $request->address,
             ]);
 
             return response()->json([
@@ -408,7 +415,7 @@ class VisitorApiController extends Controller
             ], 500);
         }
     }
-
+    
     // public function VisitordataUpload(Request $request)
     // {
     //     $request->validate([
@@ -424,7 +431,9 @@ class VisitorApiController extends Controller
 
     //     DB::beginTransaction();
     //     try {
-
+    //         $importedCount = 0;
+    //         $skippedCount = 0;
+    //         $errors = [];
     //         foreach ($rows as $key => $row) {
     //             if ($key == 0) continue; // skip header
 
@@ -432,11 +441,71 @@ class VisitorApiController extends Controller
     //             $mobile  = $row[1] ?? null;
     //             $email   = $row[2] ?? null;
     //             $company = $row[3] ?? null;
-    //             $state   = $row[4] ?? null;
-    //             $city    = $row[5] ?? null;
+    //             $stateName   = $row[4] ?? null;
+    //             $cityName    = $row[5] ?? null;
 
     //             if (!$mobile) continue;
-
+                
+    //             // 2. Put validation for each row
+    //             $rowErrors = [];
+                
+    //             // Validate mobile
+    //             if (!$mobile) {
+    //                 $rowErrors[] = "Row " . ($key + 1) . ": Mobile number is required";
+    //             } elseif (!preg_match('/^[0-9]{10}$/', $mobile)) {
+    //                 $rowErrors[] = "Row " . ($key + 1) . ": Invalid mobile number format (should be 10 digits)";
+    //             }
+                
+    //             // Validate name
+    //             if (!$name) {
+    //                 $rowErrors[] = "Row " . ($key + 1) . ": Name is required";
+    //             }
+                
+    //             // Validate email
+    //             if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    //                 $rowErrors[] = "Row " . ($key + 1) . ": Invalid email format";
+    //             }
+                
+    //             // 3. Set state and city ID instead of name and check name validation
+    //             $stateId = null;
+    //             $cityId = null;
+                
+    //             if ($stateName) {
+    //                 $stateKey = strtolower($stateName);
+    //                 $stateId = $states[$stateKey] ?? null;
+    //                 if (!$stateId) {
+    //                     $rowErrors[] = "Row " . ($key + 1) . ": Invalid state name '$stateName'";
+    //                 }
+    //             }
+                
+    //             if ($cityName) {
+    //                 $cityKey = strtolower($cityName);
+    //                 $cityId = $cities[$cityKey] ?? null;
+    //                 if (!$cityId) {
+    //                     $rowErrors[] = "Row " . ($key + 1) . ": Invalid city name '$cityName'";
+                        
+    //                     // Optional: Try to find city by partial match or suggest alternatives
+    //                     $similarCities = CityMaster::where('name', 'LIKE', '%' . $cityName . '%')->pluck('name')->toArray();
+    //                     if (!empty($similarCities)) {
+    //                         $rowErrors[count($rowErrors) - 1] .= ". Did you mean: " . implode(', ', array_slice($similarCities, 0, 3));
+    //                     }
+    //                 }
+    //             }
+                
+    //             // If there are errors for this row, skip it
+    //             if (!empty($rowErrors)) {
+    //                 $errors = array_merge($errors, $rowErrors);
+    //                 $skippedCount++;
+    //                 continue;
+    //             }
+                
+    //             if (!empty($errors)) {
+    //                 $response['errors'] = array_slice($errors, 0, 20); // Show first 20 errors
+    //                 if (count($errors) > 20) {
+    //                     $response['message'] .= ' (' . count($errors) . ' errors found, showing first 20)';
+    //                 }
+    //             }
+                
     //             /** -------------------------------
     //              * FIND OR CREATE VISITOR
     //              * --------------------------------*/
@@ -448,8 +517,8 @@ class VisitorApiController extends Controller
     //                     'mobileno'    => $mobile,
     //                     'email'       => $email,
     //                     'companyname' => $company,
-    //                     'stateid'     => $state,
-    //                     'cityid'      => $city,
+    //                     'stateid'     => $stateId,
+    //                     'cityid'      => $cityId,
     //                     'expo_id'     => $request->expo_id,
     //                     'industry_id'     => $request->industry_id,
     //                     'enter_by'    => $request->user_name ?? '',
@@ -529,14 +598,43 @@ class VisitorApiController extends Controller
 
     public function VisitordataUpload(Request $request)
     {
-        $request->validate([
-            'type'       => 'required|in:industry,pre_register,visited',
-            'expo_id'    => 'nullable',
-            'industry_id'=> 'nullable',
-            'user_id'    => 'required',
-            'user_name'  => 'required',
-            'file'       => 'required|mimes:xls,xlsx',
+        // $request->validate([
+        //     'type'       => 'required|in:industry,pre_register,visited',
+        //     'expo_id'    => 'nullable',
+        //     'industry_id'=> 'nullable',
+        //     'user_id'    => 'required',
+        //     'user_name'  => 'required',
+        //     'file'       => 'required|mimes:xls,xlsx',
+        // ]);
+        
+        $validator = Validator::make($request->all(), [
+            'type'        => 'required|in:industry,pre_register,visited',
+            'expo_id'     => 'nullable',
+            'industry_id' => 'nullable',
+            'user_id'     => 'required',
+            'user_name'   => 'required',
+            'file'        => 'required|mimes:xls,xlsx',
+        ], [
+            'type.required' => 'Type is required.',
+            'type.in'       => 'Type must be industry, pre_register, or visited.',
+        
+            'expo_id.required' => 'Expo ID is required.',
+            'industry_id.required' => 'Industry ID is required.',
+        
+            'user_id.required' => 'User ID is required.',
+            'user_name.required' => 'User name is required.',
+        
+            'file.required' => 'File is required.',
+            'file.mimes'    => 'File must be an Excel file (xls or xlsx).',
         ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
 
         $file = $request->file('file');
         $rows = Excel::toArray([], $file)[0];
@@ -643,24 +741,9 @@ class VisitorApiController extends Controller
                     continue;
                 }
                 
-                // Check if mobile already exists (but not for industry type)
-                if ($request->type !== 'industry') {
-                    $existingVisitor = Visitor::where('mobileno', $mobile)
-                        ->where('expo_id', $request->expo_id)
-                        ->first();
-                        
-                    if ($existingVisitor) {
-                        $visitor = $existingVisitor;
-                    } else {
-                        // For non-industry imports, visitor must exist in the system
-                        $errors[] = "Row " . ($key + 1) . ": Visitor with mobile $mobile not found in system. Please import industry data first.";
-                        $skippedCount++;
-                        continue;
-                    }
-                } else {
-                    // For industry type, find or create visitor
-                    $visitor = Visitor::where('mobileno', $mobile)->first();
-                }
+               
+                // For industry type, find or create visitor
+                $visitor = Visitor::where('mobileno', $mobile)->first();
                 
                 if (!$visitor) {
                     $visitorData = [
@@ -671,6 +754,7 @@ class VisitorApiController extends Controller
                         'stateid'     => $stateId,
                         'cityid'      => $cityId,
                         'enter_by'    => $request->user_name ?? '',
+                       // 'address'     => trim($row[6] ?? ''),
                     ];
                     
                     // Only set these if provided
@@ -680,7 +764,6 @@ class VisitorApiController extends Controller
                     if ($request->industry_id) {
                         $visitorData['industry_id'] = $request->industry_id;
                     }
-                    
                     $visitor = Visitor::create($visitorData);
                 } else {
                     // Update existing visitor with new data if needed
@@ -690,7 +773,6 @@ class VisitorApiController extends Controller
                     if ($company && !$visitor->companyname) $updateData['companyname'] = $company;
                     if ($stateId && !$visitor->stateid) $updateData['stateid'] = $stateId;
                     if ($cityId && !$visitor->cityid) $updateData['cityid'] = $cityId;
-                    
                     if (!empty($updateData)) {
                         $visitor->update($updateData);
                     }
@@ -769,7 +851,7 @@ class VisitorApiController extends Controller
             if (!empty($errors)) {
                 $response['errors'] = array_slice($errors, 0, 20); // Show first 20 errors
                 if (count($errors) > 20) {
-                    $response['message'] .= ' (' . count($errors) . ' errors found, showing first 20)';
+                    //$response['message'] .= ' (' . count($errors) . ' errors found, showing first 20)';
                 }
             }
             
@@ -784,12 +866,12 @@ class VisitorApiController extends Controller
             ], 500);
         }
     }
-
+    
     public function adminVisitorList(Request $request)
     {
         try {
             $request->validate([
-                'expo_id'  => 'required',
+                'expo_id'  => 'nullable',
                 'industry_id'  => 'required',
                 'Is_Pre'   => 'required',
                 'Is_Visit'   => 'required'
@@ -798,10 +880,12 @@ class VisitorApiController extends Controller
             $page = $request->page ?? 1;
 
             $query = Visitorvisit::with(['visitor.state', 'visitor.city'])
-            ->where('expo_id', $request->expo_id)
-            ->whereHas('visitor', function ($q) use ($request) {
-                $q->where('industry_id', $request->industry_id);
-            });
+                ->whereHas('visitor', function ($q) use ($request) {
+                    $q->where('industry_id', $request->industry_id);
+                });
+            if ($request->expo_id != null) {
+                $query->where('expo_id', $request->expo_id);
+            }
 
             if ($request->Is_Pre != 2) {
                 $query->where('Is_Pre', $request->Is_Pre);
@@ -830,6 +914,7 @@ class VisitorApiController extends Controller
                         'cityid'      => $visit->visitor->cityid,
                         'state_name'  => $visit->visitor->state ? $visit->visitor->state->stateName : null, // Assuming 'stateName' column
                         'city_name'   => $visit->visitor->city ? $visit->visitor->city->name : null,    // Assuming 'cityName' column
+                        'address'     => $visit->address 
                     ];
                 }
                 return response()->json([
@@ -854,13 +939,13 @@ class VisitorApiController extends Controller
             ], 500);
         }
     }
-
+    
     public function exportVisitors(Request $request)
     {
         try {
             $request->validate([
-                'expo_id'     => 'required',
-                'industry_id' => 'required',
+                'expo_id'  => 'nullable',
+                'industry_id'  => 'required',
                 'Is_Pre'      => 'required',
                 'Is_Visit'    => 'required'
             ]);

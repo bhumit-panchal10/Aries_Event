@@ -31,7 +31,20 @@ class ExpoAssignToUserApiController extends Controller
                 "industry_id" => 'required',
                 "expo_id" => 'required|exists:expo-master,id',
             ]);
+            
+            $exists = ExpoAssignToUser::where([
+                'user_id' => $request->user_id,
+                'industry_id' => $request->industry_id,
+                'expo_id' => $request->expo_id,
+            ])->exists();
 
+            if ($exists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This expo is already assigned to this user for the selected industry.',
+                ], 409);
+            }
+            
             // Create assignment
             $assignment = ExpoAssignToUser::create([
                 'user_id' => $request->user_id,

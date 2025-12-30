@@ -34,6 +34,7 @@ class UserApiController extends Controller
             ]);
 
             $data = ExpoAssignToUser::with([
+                'industry',
                 'expomaster.city',
                 'expomaster.state',
             ])
@@ -43,6 +44,8 @@ class UserApiController extends Controller
                 ->map(function ($item) {
                     return [
                         'assign_id'   => $item->id,
+                        'industry_id'   => $item->industry->id ?? '',
+                        'industry_name' => $item->industry->name ?? '',
                         'expo_id'   => $item->expomaster->id ?? '',
                         'expo_name'   => $item->expomaster->name ?? '',
                         'slugname'   => $item->expomaster->slugname ?? '',

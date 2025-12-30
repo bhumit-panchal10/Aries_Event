@@ -28,10 +28,13 @@ class VisitorsExport implements FromCollection, WithHeadings, WithMapping, Shoul
     public function collection()
     {
         $query = Visitorvisit::with(['visitor.state', 'visitor.city'])
-            ->where('expo_id', $this->expoId)
             ->whereHas('visitor', function ($q) {
                 $q->where('industry_id', $this->industryId);
             });
+            //->where('expo_id', $this->expoId)
+        if ($this->expoId != null) {
+            $query->where('expo_id', $this->expoId);
+        }
 
         if ($this->isPre != 2) {
             $query->where('Is_Pre', $this->isPre);

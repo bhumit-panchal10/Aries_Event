@@ -46,6 +46,8 @@ Route::get('/clear-cache', function () {
     Artisan::call('view:clear');
     Artisan::call('route:clear');
     Artisan::call('config:clear');
+    Artisan::call('optimize:clear');
+    Artisan::call('route:list');
     return 'Cache is cleared';
 });
 

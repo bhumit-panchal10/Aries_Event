@@ -11,7 +11,9 @@ use App\Http\Controllers\Api\UserApiController;
 use App\Http\Controllers\Api\ExpoAssignToUserApiController;
 use App\Http\Controllers\Api\VisitorApiController;
 use Illuminate\Support\Facades\Artisan;
-
+use App\Http\Controllers\Api\ExhibitorContactController;
+use App\Http\Controllers\Api\IndustryCategoryController;
+use App\Http\Controllers\Api\IndustrySubCategoryController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -99,3 +101,32 @@ Route::post('/Expowise/count', [VisitorApiController::class, 'ExpowiseCount']);
 Route::post('/Visitordata/Upload', [VisitorApiController::class, 'VisitordataUpload']);
 Route::post('/admin_visitor_list', [VisitorApiController::class, 'adminVisitorList']);
 Route::post('/admin_visitors_export', [VisitorApiController::class, 'exportVisitors']);
+
+Route::prefix('exhibitors')->group(function () {
+    Route::post('/store', [ExhibitorContactController::class, 'store']);
+    Route::post('/', [ExhibitorContactController::class, 'index']);
+    Route::post('/show', [ExhibitorContactController::class, 'show']);
+    Route::post('/search-by-mobile', [ExhibitorContactController::class, 'searchByMobile']);
+});
+
+Route::prefix('industry-categories')->group(function () {
+    Route::post('/', [IndustryCategoryController::class, 'index']);
+    Route::post('/store', [IndustryCategoryController::class, 'store']);
+    Route::post('/show', [IndustryCategoryController::class, 'show']);
+    Route::post('/update', [IndustryCategoryController::class, 'update']);
+    Route::post('/delete', [IndustryCategoryController::class, 'destroy']);
+});
+
+Route::prefix('industry-subcategories')->group(function () {
+    Route::post('/', [IndustrySubCategoryController::class, 'index']);
+    Route::post('/store', [IndustrySubCategoryController::class, 'store']);
+    Route::post('/show', [IndustrySubCategoryController::class, 'show']);
+    Route::post('/update', [IndustrySubCategoryController::class, 'update']);
+    Route::post('/delete', [IndustrySubCategoryController::class, 'destroy']);
+    
+    // Additional routes
+    Route::post('/get-by-industry', [IndustrySubCategoryController::class, 'getCategoriesByIndustry']);
+    Route::post('/get-by-category', [IndustrySubCategoryController::class, 'getByCategory']);
+    //Route::post('/bulk-status-update', [IndustrySubCategoryController::class, 'bulkStatusUpdate']);
+});
+
