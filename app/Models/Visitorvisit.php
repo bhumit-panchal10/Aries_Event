@@ -19,7 +19,7 @@ class Visitorvisit extends Model
         'Is_Pre',
         'Is_Visit',
     ];
-
+    
     // In Visitorvisit model
     public function visitor()
     {

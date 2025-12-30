@@ -17,7 +17,7 @@ use GuzzleHttp\Client;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-
+use App\Models\ExpoMaster;
 
 class CityApiController extends Controller
 
@@ -99,7 +99,13 @@ class CityApiController extends Controller
 
             $StateMaster = StateMaster::select('stateId', 'stateName')
                 ->paginate($perPage, ['stateId', 'stateName'], 'page', $page);
-
+                
+            $expo_name = "";
+            if(isset($request->expo_slugname) && $request->expo_slugname != ""){
+                $expomaster = ExpoMaster::where('slugname', $request->expo_slugname)->first();
+                $expo_name = $expomaster->name;
+            }
+            
             // Create custom clean response
             $response = [
                 'success' => true,
@@ -108,7 +114,8 @@ class CityApiController extends Controller
                 'per_page' => $StateMaster->perPage(),
                 'total' => $StateMaster->total(),
                 'last_page' => $StateMaster->lastPage(),
-                'data' => $StateMaster->items()  // only data
+                'data' => $StateMaster->items(),  // only data
+                'expo_name' => $expo_name
             ];
 
             return response()->json($response, 200);
