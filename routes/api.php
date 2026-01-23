@@ -94,6 +94,9 @@ Route::post('/visitor/by-mobile', [VisitorApiController::class, 'getByMobile']);
 Route::post('/Visitor/list', [VisitorApiController::class, 'visitorlist']);
 Route::post('/Visitor/show', [VisitorApiController::class, 'visitorshow']);
 Route::post('/Visitor/Update', [VisitorApiController::class, 'visitorupdate']);
+Route::post('/visitor/check-visitor-by-mobile', [VisitorApiController::class, 'checkVisitorByMobile']);
+Route::post('/visitor/store', [VisitorApiController::class, 'visitorstore']);
+Route::post('/visitor/today-expected-visitor-count', [VisitorApiController::class, 'expectedVisitorCount']);
 
 Route::post('/visitor/user/count', [VisitorApiController::class, 'userVisitorCount']);
 Route::post('/Expowise/count', [VisitorApiController::class, 'ExpowiseCount']);
@@ -107,6 +110,7 @@ Route::prefix('exhibitors')->group(function () {
     Route::post('/', [ExhibitorContactController::class, 'index']);
     Route::post('/show', [ExhibitorContactController::class, 'show']);
     Route::post('/search-by-mobile', [ExhibitorContactController::class, 'searchByMobile']);
+    Route::post('/Expowise/count', [ExhibitorContactController::class, 'ExpowiseCount']);
 });
 
 Route::prefix('industry-categories')->group(function () {

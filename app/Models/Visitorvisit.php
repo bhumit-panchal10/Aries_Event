@@ -25,4 +25,5 @@ class Visitorvisit extends Model
     {
         return $this->belongsTo(Visitor::class, 'visitor_id'); // Adjust the foreign key if needed
     }
+    
 }

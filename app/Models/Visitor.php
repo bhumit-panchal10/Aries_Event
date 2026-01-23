@@ -37,4 +37,9 @@ class Visitor extends Model
     {
         return $this->belongsTo(CityMaster::class, 'cityid', 'id');
     }
+    
+    public function visitorVisits()
+    {
+        return $this->hasMany(Visitorvisit::class, 'visitor_id');
+    }
 }
