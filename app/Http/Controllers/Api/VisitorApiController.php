@@ -24,6 +24,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\VisitorsExport;
 use App\Models\StateMaster;
 use Illuminate\Support\Facades\Validator;
+use App\Models\ExhibitorCompanyInformation;
 
 class VisitorApiController extends Controller
 
@@ -311,13 +312,20 @@ class VisitorApiController extends Controller
             $todayVisitors = Visitor::where('user_id', $request->user_id)
                 ->whereDate('created_at', now()->toDateString())
                 ->count();
-
+                
+            $totalExhibitors = ExhibitorCompanyInformation::where('enter_by',$request->user_id)->count();
+            $todayExhibitors = ExhibitorCompanyInformation::where('enter_by',$request->user_id)
+                ->whereDate('created_at', now()->toDateString())
+                ->count();
+            
             return response()->json([
                 'success' => true,
                 'data' => [
                     'user_id' => $request->user_id,
                     'total_visitors' => $totalVisitors,
                     'today_visitors' => $todayVisitors,
+                    'total_exhibitors' => $totalExhibitors,
+                    'today_exhibitors' => $todayExhibitors
                 ],
                 'message' => 'User wise visitor count fetched successfully',
             ], 200);
@@ -596,7 +604,7 @@ class VisitorApiController extends Controller
     //     }
     // }
 
-    public function VisitordataUpload(Request $request)
+    /*public function VisitordataUpload(Request $request)
     {
         // $request->validate([
         //     'type'       => 'required|in:industry,pre_register,visited',
@@ -679,6 +687,7 @@ class VisitorApiController extends Controller
             });
 
             foreach ($rows as $key => $row) {
+                
                 if ($key == 0) continue; // skip header
                 
                 $name    = trim($row[0] ?? '');
@@ -744,7 +753,6 @@ class VisitorApiController extends Controller
                
                 // For industry type, find or create visitor
                 $visitor = Visitor::where('mobileno', $mobile)->first();
-                
                 if (!$visitor) {
                     $visitorData = [
                         'name'        => $name,
@@ -778,25 +786,22 @@ class VisitorApiController extends Controller
                     }
                 }
                 
-                /** -------------------------------
-                 * PHASE 1 – INDUSTRY
-                 * --------------------------------*/
+                
+                // PHASE 1 – INDUSTRY
                 if ($request->type === 'industry') {
                     $importedCount++;
                     continue; // only visitor insert
                 }
                 
-                /** -------------------------------
-                 * CHECK VISITOR VISIT
-                 * --------------------------------*/
+                
+                // CHECK VISITOR VISIT
                 $visit = Visitorvisit::where([
                     'visitor_id' => $visitor->id,
                     'expo_id'    => $request->expo_id
                 ])->first();
                 
-                /** -------------------------------
-                 * PHASE 2 – PRE REGISTER
-                 * --------------------------------*/
+                
+                // PHASE 2 – PRE REGISTER
                 if ($request->type === 'pre_register') {
                     if ($visit) {
                         $visit->update([
@@ -814,10 +819,10 @@ class VisitorApiController extends Controller
                     $importedCount++;
                 }
                 
-                /** -------------------------------
-                 * PHASE 3 – VISITED VISITOR
-                 * --------------------------------*/
+                
+                // PHASE 3 – VISITED VISITOR
                 if ($request->type === 'visited') {
+                    
                     if ($visit) {
                         $visit->update([
                             'Is_Visit' => 1
@@ -836,7 +841,18 @@ class VisitorApiController extends Controller
             }
 
             DB::commit();
-            
+            if (!empty($errors)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Excel upload completed with errors',
+                    'stats' => [
+                        'total_rows' => count($rows) - 1,
+                        'imported' => $importedCount,
+                        'skipped' => $skippedCount,
+                    ],
+                    'errors' => array_slice($errors, 0, 20),
+                ], 422);
+            }
             $response = [
                 'success' => true,
                 'message' => 'Visitor Excel uploaded successfully',
@@ -865,11 +881,187 @@ class VisitorApiController extends Controller
                 'trace'   => config('app.debug') ? $e->getTraceAsString() : null
             ], 500);
         }
+    }*/
+    
+    public function VisitordataUpload(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'type'        => 'required|in:industry,pre_register,visited',
+            'expo_id'     => 'nullable',
+            'industry_id' => 'nullable',
+            'user_id'     => 'required',
+            'user_name'   => 'required',
+            'file'        => 'required|mimes:xls,xlsx',
+        ]);
+    
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+    
+        $file = $request->file('file');
+        $rows = Excel::toArray([], $file)[0];
+    
+        // Header check
+        $expectedHeaders = ['Name', 'Mobile', 'Email', 'Company', 'State', 'City'];
+        $actualHeaders = $rows[0] ?? [];
+    
+        if ($actualHeaders !== $expectedHeaders) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Excel header format',
+                'expected_headers' => $expectedHeaders,
+            ], 400);
+        }
+    
+        DB::beginTransaction();
+    
+        try {
+            $importedCount = 0;
+            $skippedCount  = 0;
+            $errors        = [];
+    
+            $states = StateMaster::pluck('stateId', 'stateName')
+                ->mapWithKeys(fn ($id, $name) => [strtolower(trim($name)) => $id]);
+    
+            $cities = CityMaster::pluck('id', 'name')
+                ->mapWithKeys(fn ($id, $name) => [strtolower(trim($name)) => $id]);
+    
+            foreach ($rows as $key => $row) {
+    
+                if ($key === 0) continue;
+    
+                $name    = trim($row[0] ?? '');
+                $mobile  = trim($row[1] ?? '');
+                $email   = trim($row[2] ?? '');
+                $company = trim($row[3] ?? '');
+                $stateName = trim($row[4] ?? '');
+                $cityName  = trim($row[5] ?? '');
+    
+                // Treat "NULL" as empty
+                $stateName = strtoupper($stateName) === 'NULL' ? '' : $stateName;
+                $cityName  = strtoupper($cityName) === 'NULL' ? '' : $cityName;
+    
+                $rowErrors = [];
+    
+                // if (!$name) {
+                //     $rowErrors[] = "Row ".($key+1).": Name is required";
+                // }
+    
+                if (!$mobile || !preg_match('/^[0-9]{10}$/', $mobile)) {
+                    $rowErrors[] = "Row ".($key+1).": Invalid mobile number";
+                }
+    
+                // if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                //     $rowErrors[] = "Row ".($key+1).": Invalid email format";
+                // }
+    
+                $stateId = null;
+                if ($stateName) {
+                    $stateId = $states[strtolower($stateName)] ?? null;
+                    if (!$stateId) {
+                        $rowErrors[] = "Row ".($key+1).": Invalid state '{$stateName}'";
+                    }
+                }
+    
+                $cityId = null;
+                if ($cityName) {
+                    $cityId = $cities[strtolower($cityName)] ?? null;
+                    if (!$cityId) {
+                        $rowErrors[] = "Row ".($key+1).": Invalid city '{$cityName}'";
+                    }
+                }
+    
+                if (!empty($rowErrors)) {
+                    $errors = array_merge($errors, $rowErrors);
+                    $skippedCount++;
+                    continue;
+                }
+    
+                // Visitor create/update
+                $visitor = Visitor::firstOrCreate(
+                    ['mobileno' => $mobile],
+                    [
+                        'name'        => $name,
+                        'email'       => $email ?: null,
+                        'companyname' => $company ?: null,
+                        'stateid'     => $stateId ?? 0,
+                        'cityid'      => $cityId ?? 0,
+                        'enter_by'    => $request->user_name,
+                    ]
+                );
+    
+                if ($request->type === 'industry') {
+                    $importedCount++;
+                    continue;
+                }
+    
+                $visit = Visitorvisit::firstOrCreate(
+                    [
+                        'visitor_id' => $visitor->id,
+                        'expo_id'    => $request->expo_id,
+                    ],
+                    [
+                        'user_id'  => $request->user_id,
+                        'Is_Pre'   => 0,
+                        'Is_Visit' => 0,
+                    ]
+                );
+    
+                if ($request->type === 'pre_register') {
+                    $visit->update(['Is_Pre' => 1]);
+                }
+    
+                if ($request->type === 'visited') {
+                    $visit->update(['Is_Visit' => 1]);
+                }
+    
+                $importedCount++;
+            }
+    
+            DB::commit();
+    
+            // ❌ Errors exist → FAIL response
+            if (!empty($errors)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Excel upload completed with errors',
+                    'stats' => [
+                        'total_rows' => count($rows) - 1,
+                        'imported'   => $importedCount,
+                        'skipped'    => $skippedCount,
+                    ],
+                    'errors' => $errors, // ✅ ALL ERRORS
+                ], 422);
+            }
+    
+            // ✅ Perfect upload
+            return response()->json([
+                'success' => true,
+                'message' => 'Visitor Excel uploaded successfully',
+                'stats' => [
+                    'total_rows' => count($rows) - 1,
+                    'imported'   => $importedCount,
+                    'skipped'    => 0,
+                ],
+            ]);
+    
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
+
     
     public function adminVisitorList(Request $request)
     {
-        try {
+        // try {
             $request->validate([
                 'expo_id'  => 'nullable',
                 'industry_id'  => 'required',
@@ -879,7 +1071,7 @@ class VisitorApiController extends Controller
             $perPage = 10;
             $page = $request->page ?? 1;
 
-            $query = Visitorvisit::with(['visitor.state', 'visitor.city'])
+            /*$query = Visitorvisit::with(['visitor.state', 'visitor.city'])
                 ->whereHas('visitor', function ($q) use ($request) {
                     $q->where('industry_id', $request->industry_id);
                 });
@@ -895,7 +1087,87 @@ class VisitorApiController extends Controller
                 $query->where('Is_Visit', $request->Is_Visit);
             }
 
+            $visitors = $query->paginate($perPage, ['*'], 'page', $page);*/
+            
+            if ($request->expo_id == null && ($request->Is_Pre == 2 && $request->Is_Visit == 2)) {
+                $query = Visitor::with(['state', 'city'])
+                    ->where('industry_id', $request->industry_id);
+            } else {
+                $query = Visitor::with(['state', 'city','visitorVisits' => function ($q) {
+                        $q->latest()->limit(1);
+                    }])
+                    ->where('industry_id', $request->industry_id)
+                    ->whereHas('visitorVisits', function ($q) use ($request) {
+                
+                        // Expo filter
+                        if ($request->expo_id != null) {
+                            $q->where('expo_id', $request->expo_id);
+                        }
+                
+                        // Is_Pre filter (2 = ALL)
+                        if ($request->Is_Pre != 2) {
+                            $q->where('Is_Pre', $request->Is_Pre);
+                        }
+                
+                        // Is_Visit filter (2 = ALL)
+                        if ($request->Is_Visit != 2) {
+                            $q->where('Is_Visit', $request->Is_Visit);
+                        }
+                    });
+            }
+            // $query = Visitor::query()
+            //     ->leftJoin('visitor_visit as vv', function ($join) use ($request) {
+            //         $join->on('vv.visitor_id', '=', 'visitor.id');
+        
+            //         if ($request->expo_id) {
+            //             $join->where('vv.expo_id', $request->expo_id);
+            //         }
+        
+            //         if ($request->Is_Pre != 2) {
+            //             $join->where('vv.Is_Pre', $request->Is_Pre);
+            //         }
+        
+            //         if ($request->Is_Visit != 2) {
+            //             $join->where('vv.Is_Visit', $request->Is_Visit);
+            //         }
+            //     })
+            //     ->leftJoin('state', 'state.stateId', '=', 'visitor.stateid')
+            //     ->leftJoin('City', 'City.id', '=', 'visitor.cityid')
+            //     ->where('visitor.industry_id', $request->industry_id)
+            //     ->select([
+            //         'visitor.id',
+            //         'visitor.mobileno',
+            //         'visitor.companyname',
+            //         'visitor.name',
+            //         'visitor.email',
+            //         'state.stateName as state_name',
+            //         'City.name as city_name',
+            //         'visitor.created_at',
+            //     ])
+            //     ->selectRaw("
+            //         CASE 
+            //             WHEN MAX(vv.Is_Pre) = 1 THEN 'Yes' 
+            //             ELSE 'No' 
+            //         END as Is_Pre
+            //     ")
+            //     ->selectRaw("
+            //         CASE 
+            //             WHEN MAX(vv.Is_Visit) = 1 THEN 'Yes' 
+            //             ELSE 'No' 
+            //         END as Is_Visit
+            //     ")
+            //     ->groupBy(
+            //         'visitor.id',
+            //         'visitor.mobileno',
+            //         'visitor.companyname',
+            //         'visitor.name',
+            //         'visitor.email',
+            //         'state.stateName',
+            //         'City.name',
+            //         'visitor.created_at'
+            //     );
             $visitors = $query->paginate($perPage, ['*'], 'page', $page);
+            
             if ($visitors->isEmpty()) {
                 return response()->json([
                     'success' => false,
@@ -904,18 +1176,21 @@ class VisitorApiController extends Controller
             } else {
                 $data = [];
                 foreach ($visitors as $visit) {
+                    $latestVisit = $visit->visitorVisits->first();
+
                     $data[] = [
-                        'visitorid'   => $visit->visitor->id,
-                        'mobileno'    => $visit->visitor->mobileno,
-                        'companyname' => $visit->visitor->companyname,
-                        'name'        => $visit->visitor->name,
-                        'email'       => $visit->visitor->email,
-                        'stateid'     => $visit->visitor->stateid,
-                        'cityid'      => $visit->visitor->cityid,
-                        'state_name'  => $visit->visitor->state ? $visit->visitor->state->stateName : null, // Assuming 'stateName' column
-                        'city_name'   => $visit->visitor->city ? $visit->visitor->city->name : null,    // Assuming 'cityName' column
-                        'address'     => $visit->address 
+                        'visitorid'   => $visit->id,
+                        'mobileno'    => $visit->mobileno,
+                        'companyname' => $visit->companyname,
+                        'name'        => $visit->name,
+                        'email'       => $visit->email,
+                        'stateid'     => $visit->stateid,
+                        'cityid'      => $visit->cityid,
+                        'state_name'  => $visit->state ? $visit->state->stateName : null, // Assuming 'stateName' column
+                        'city_name'   => $visit->city ? $visit->city->name : null,    // Assuming 'cityName' column
+                        'address'     => $visit->address
                     ];
+                    
                 }
                 return response()->json([
                     'success' => true,
@@ -932,12 +1207,12 @@ class VisitorApiController extends Controller
                     'message' => 'Visitor record fetched successfully',
                 ], 200);
             }     
-        } catch (\Throwable $th) {
-            return response()->json([
-                'success' => false,
-                'error'   => $th->getMessage(),
-            ], 500);
-        }
+        // } catch (\Throwable $th) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'error'   => $th->getMessage(),
+        //     ], 500);
+        // }
     }
     
     public function exportVisitors(Request $request)
@@ -968,6 +1243,124 @@ class VisitorApiController extends Controller
             return response()->json([
                 'success' => false,
                 'error'   => $th->getMessage(),
+            ], 500);
+        }
+    }
+    
+    public function checkVisitorByMobile(Request $request)
+    {
+        try {
+
+            $request->validate([
+                'mobileno' => 'required',
+            ]);
+
+            $visitor = Visitor::where('mobileno', $request->mobileno)
+                ->where('iSDelete', 0)
+                ->first();
+
+            if ($visitor) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Number already exists',
+                ], 404);
+            } else {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'No Data Found!',
+                ], 200);
+            }
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error' => $th->getMessage(),
+            ], 500);
+        }
+    }
+    
+    public function visitorstore(Request $request){
+        try {
+
+
+            $request->validate([
+                'mobileno' => [
+                    'required',
+                    'digits:10',
+                    Rule::unique('visitor', 'mobileno'),
+                ],
+                'companyname' => 'nullable',
+                'name'        => 'nullable',
+                'email'       => 'nullable|email',
+                'stateid'     => 'nullable',
+                'cityid'      => 'nullable',
+                'userid'      => 'required',
+                'username'    => 'nullable',
+                'address' => 'nullable'
+            ]);
+
+            // 1️⃣ Insert Visitor
+            $visitor = Visitor::create([
+                'mobileno'    => $request->mobileno,
+                'companyname' => $request->companyname,
+                'name'        => $request->name,
+                'email'       => $request->email,
+                'stateid'     => $request->stateid,
+                'cityid'      => $request->cityid,
+                'user_id'     => $request->userid,
+                'address'     => $request->address,    
+                'expo_id'     => null,
+                'iStatus'     => 1,
+                'iSDelete'    => 0,
+                'industry_id' => $request->industry_id,
+                'enter_by'    => $request->username,
+            ]);
+            
+            // 3️⃣ Today count
+            $visitortodaycount = Visitor::where('user_id', $request->userid)
+                ->where(function ($q) {
+                    $q->whereDate('created_at', today())
+                      ->orWhereDate('updated_at', today());
+                })
+                ->count();
+                
+            return response()->json([
+                'success' => true,
+                'data' => $visitor,
+                'today_visitor_count' => $visitortodaycount,
+                'message' => 'Visitor Added Successfully',
+            ], 201);
+        } catch (\Throwable $th) {
+
+            return response()->json([
+                'success' => false,
+                'message' => $th->getMessage(),
+            ], 500);
+        }
+    }
+    
+    public function expectedVisitorCount(Request $request){
+        try {
+            $request->validate([
+                'userid'      => 'required'
+            ]);
+            $visitortodaycount = Visitor::where('user_id', $request->userid)
+                ->where(function ($q) {
+                    $q->whereDate('created_at', today())
+                      ->orWhereDate('updated_at', today());
+                })
+                ->count();
+            return response()->json([
+                'success' => true,
+                'today_visitor_count' => $visitortodaycount,
+                'message' => 'Visitor Added Successfully',
+            ], 200);  
+        } catch (\Throwable $th) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => $th->getMessage(),
             ], 500);
         }
     }

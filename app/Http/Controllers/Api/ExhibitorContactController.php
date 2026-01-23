@@ -9,6 +9,7 @@ use App\Models\ExhibitorOtherContact;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Models\ExpoMaster;
 
 class ExhibitorContactController extends Controller
 {
@@ -20,6 +21,7 @@ class ExhibitorContactController extends Controller
     {
         // Validation rules
         $validator = Validator::make($request->all(), [
+            'user_id' => 'required|exists:User,id',
             'expo_slug' => 'required|string|exists:expo-master,slugname', // Changed from expo_id to expo_slug
             'primary_contact_name' => 'required|string',
             'primary_contact_mobile' => 'required',
@@ -105,7 +107,7 @@ class ExhibitorContactController extends Controller
                         'category_id' => $request->category_id ?? 0,
                         'subcategory_id' => $request->subcategory_id ?? 0,
                         'store_size_sq_meter' => $request->store_size_sq_meter ?? 0, // New field
-                        'enter_by' => auth()->id() ?? 0,
+                        'enter_by' => $request->user_id ?? 0,
                         'iStatus' => 1,
                         'iSDelete' => 0,
                     ]);
@@ -150,7 +152,7 @@ class ExhibitorContactController extends Controller
                     'primary_contact_mobile' => $request->primary_contact_mobile,
                     'primary_contact_designation' => $request->primary_contact_designation,
                     'primary_contact_email' => $request->primary_contact_email,
-                    'enter_by' => auth()->id() ?? 0,
+                    'enter_by' => $request->user_id ?? 0,
                     'iStatus' => 1,
                     'iSDelete' => 0,
                 ]);
@@ -168,7 +170,7 @@ class ExhibitorContactController extends Controller
                     'category_id' => $request->category_id ?? 0,
                     'subcategory_id' => $request->subcategory_id ?? 0,
                     'store_size_sq_meter' => $request->store_size_sq_meter ?? 0, // New field
-                    'enter_by' => auth()->id() ?? 0,
+                    'enter_by' => $request->user_id ?? 0,
                     'iStatus' => 1,
                     'iSDelete' => 0,
                 ]);
@@ -263,6 +265,7 @@ class ExhibitorContactController extends Controller
           
         $expo = DB::table('expo-master')->where('id', $data->expo_id)->first();
         $expo_name = $expo->name ?? '';
+        $expo_slug = $expo->slugname ?? '';
         if (!$data) {
             return response()->json([
                 'success' => false,
@@ -273,7 +276,8 @@ class ExhibitorContactController extends Controller
         return response()->json([
             'success' => true,
             'data' => $data,
-            'expo_name' => $expo_name
+            'expo_name' => $expo_name,
+            'expo_slug' => $expo_slug
         ]);
     }
     
@@ -384,5 +388,37 @@ class ExhibitorContactController extends Controller
             // COUNT
             'total_other_contacts_count' => $company->otherContacts->count(),
         ]);
+    }
+    
+    public function ExpowiseCount(Request $request)
+    {
+        try {
+            $request->validate([
+                'user_id' => 'required|exists:User,id',
+                'expo_slugname' => 'required',
+            ]);
+            $expomaster = ExpoMaster::where('slugname', $request->expo_slugname)->first();
+
+            $totalExhibitors = ExhibitorCompanyInformation::where('enter_by',$request->user_id)
+                ->where('expo_id', $expomaster->id)
+                ->count();
+            $todayExhibitors = ExhibitorCompanyInformation::where('enter_by',$request->user_id)
+                ->where('expo_id', $expomaster->id) 
+                ->whereDate('created_at', now()->toDateString())
+                ->count();
+            
+
+            return response()->json([
+                'success' => true,
+                'totalExhibitors' => $totalExhibitors,
+                'todayExhibitors' => $todayExhibitors,
+                'message' => 'Expo-wise exhibitor count fetched successfully',
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error' => $th->getMessage(),
+            ], 500);
+        }
     }
 }

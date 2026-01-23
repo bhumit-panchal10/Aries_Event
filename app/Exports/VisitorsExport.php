@@ -3,12 +3,14 @@
 namespace App\Exports;
 
 use App\Models\Visitorvisit;
+use App\Models\Visitor;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Illuminate\Support\Facades\DB;
 
 class VisitorsExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
 {
@@ -16,6 +18,7 @@ class VisitorsExport implements FromCollection, WithHeadings, WithMapping, Shoul
     protected $industryId;
     protected $isPre;
     protected $isVisit;
+    protected $counter = 1;
 
     public function __construct($expoId, $industryId, $isPre, $isVisit)
     {
@@ -27,23 +30,64 @@ class VisitorsExport implements FromCollection, WithHeadings, WithMapping, Shoul
 
     public function collection()
     {
-        $query = Visitorvisit::with(['visitor.state', 'visitor.city'])
-            ->whereHas('visitor', function ($q) {
-                $q->where('industry_id', $this->industryId);
+        $query = Visitor::query()
+            ->select([
+                'visitor.id',
+                'visitor.mobileno',
+                'visitor.companyname',
+                'visitor.name',
+                'visitor.email',
+                'state.stateName as state_name',
+                'City.name as city_name',
+                'visitor.created_at',
+                // Get Is_Pre from the latest matching visit
+                DB::raw("(
+                    SELECT vv.Is_Pre 
+                    FROM visitor_visit vv 
+                    WHERE vv.visitor_id = visitor.id 
+                    " . ($this->expoId !== null ? " AND vv.expo_id = " . $this->expoId : "") . "
+                    " . ($this->isPre != 2 ? " AND vv.Is_Pre = " . $this->isPre : "") . "
+                    " . ($this->isVisit != 2 ? " AND vv.Is_Visit = " . $this->isVisit : "") . "
+                    ORDER BY vv.created_at DESC 
+                    LIMIT 1
+                ) as Is_Pre"),
+                // Get Is_Visit from the latest matching visit
+                DB::raw("(
+                    SELECT vv.Is_Visit 
+                    FROM visitor_visit vv 
+                    WHERE vv.visitor_id = visitor.id 
+                    " . ($this->expoId !== null ? " AND vv.expo_id = " . $this->expoId : "") . "
+                    " . ($this->isPre != 2 ? " AND vv.Is_Pre = " . $this->isPre : "") . "
+                    " . ($this->isVisit != 2 ? " AND vv.Is_Visit = " . $this->isVisit : "") . "
+                    ORDER BY vv.created_at DESC 
+                    LIMIT 1
+                ) as Is_Visit")
+            ])
+            ->leftJoin('state', 'state.stateId', '=', 'visitor.stateid')
+            ->leftJoin('City', 'City.id', '=', 'visitor.cityid')
+            ->where('visitor.industry_id', $this->industryId);
+            
+        // If any filters are applied, only show visitors with matching visits
+        if ($this->expoId !== null || $this->isPre != 2 || $this->isVisit != 2) {
+            $query->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                  ->from('visitor_visit')
+                  ->whereColumn('visitor_visit.visitor_id', 'visitor.id');
+                  
+                if ($this->expoId !== null) {
+                    $q->where('visitor_visit.expo_id', $this->expoId);
+                }
+                
+                if ($this->isPre != 2) {
+                    $q->where('visitor_visit.Is_Pre', $this->isPre);
+                }
+                
+                if ($this->isVisit != 2) {
+                    $q->where('visitor_visit.Is_Visit', $this->isVisit);
+                }
             });
-            //->where('expo_id', $this->expoId)
-        if ($this->expoId != null) {
-            $query->where('expo_id', $this->expoId);
         }
-
-        if ($this->isPre != 2) {
-            $query->where('Is_Pre', $this->isPre);
-        }
-
-        if ($this->isVisit != 2) {
-            $query->where('Is_Visit', $this->isVisit);
-        }
-
+        
         return $query->get();
     }
 
@@ -51,35 +95,43 @@ class VisitorsExport implements FromCollection, WithHeadings, WithMapping, Shoul
     {
         return [
             'ID',
-            'Mobile No',
-            'Company Name',
             'Name',
+            'Mobile No',
             'Email',
+            'Company Name',
             'State',
             'City',
-            // 'State ID',
-            // 'City ID',
             'Is Pre',
             'Is Visit',
             'Created At'
         ];
     }
-
-    public function map($visit): array
+    
+    public function map($row): array
     {
+        // Convert numeric values to Yes/No
+        $isPre = $row->Is_Pre == 1 ? 'Yes' : 'No';
+        $isVisit = $row->Is_Visit == 1 ? 'Yes' : 'No';
+        
+        // Handle null values (if no matching visit found)
+        if ($row->Is_Pre === null) {
+            $isPre = 'No';
+        }
+        if ($row->Is_Visit === null) {
+            $isVisit = 'No';
+        }
+
         return [
-            $visit->visitor->id,
-            $visit->visitor->mobileno,
-            $visit->visitor->companyname,
-            $visit->visitor->name,
-            $visit->visitor->email,
-            $visit->visitor->state ? $visit->visitor->state->stateName : 'N/A',
-            $visit->visitor->city ? $visit->visitor->city->name : 'N/A',
-            // $visit->visitor->stateid,
-            // $visit->visitor->cityid,
-            $visit->Is_Pre == 1 ? 'Yes' : 'No',
-            $visit->Is_Visit == 1 ? 'Yes' : 'No',
-            $visit->created_at->format('Y-m-d H:i:s'),
+            $this->counter++,
+            $row->name,
+            $row->mobileno,
+            $row->email,
+            $row->companyname,
+            $row->state_name ?? 'N/A',
+            $row->city_name ?? 'N/A',
+            $isPre,
+            $isVisit,
+            $row->created_at->format('Y-m-d H:i:s'),
         ];
     }
 
